@@ -24,6 +24,7 @@ import android.util.Log
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.preference.PreferenceManager
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "root/control"
@@ -115,28 +116,65 @@ class MainActivity : FlutterActivity() {
                         requestDeviceAdmin()
                         result.success("Requesting device admin activation")
                     }
+                    "startAppPinning" -> {
+                        val packageName = call.argument<String>("package")
+                        if (packageName != null) {
+                            startAppPinning(packageName)
+                            result.success("App pinning started")
+                        } else {
+                            result.error("INVALID_PACKAGE", "Package name is null", null)
+                        }
+                    }
+                    "startForegroundService" -> {
+                        val intent = Intent(this, ForegroundService::class.java)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(intent)
+                        } else {
+                            startService(intent)
+                        }
+                        result.success("Foreground service started")
+                    }
+                    "setKioskTarget" -> {
+                        val pkg = call.argument<String>("package")
+                        if (pkg != null) {
+                            val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+                            prefs.edit().putString("kiosk_target_package", pkg).apply()
+                            result.success("Target package set: $pkg")
+                        } else {
+                            result.error("NO_PACKAGE", "Package name null", null)
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             }
     }
 
     private fun enableKioskMode(packageName: String) {
-        try {
-            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
-            if (launchIntent != null) {
-                startActivity(launchIntent)
-                Handler(Looper.getMainLooper()).postDelayed({
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        startLockTask()
-                        Log.d("KIOSK", "Kiosk Mode ON for $packageName")
-                    }
-                }, 1000) // delay agar app sempat terbuka
-            } else {
-                Log.e("KIOSK", "App not found: $packageName")
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        val dpm = getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        if (!dpm.isAdminActive(deviceAdminComponent)) {
+            Log.e("KIOSK", "Device Admin belum aktif, tidak bisa enable kiosk")
+            return
         }
+
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+        if (launchIntent == null) {
+            Log.e("KIOSK", "App not found: $packageName")
+            return
+        }
+
+        // Set paket yang diizinkan lock task (kiosk)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            dpm.setLockTaskPackages(deviceAdminComponent, arrayOf(packageName))
+        }
+
+        // Jalankan aplikasi target dan aktifkan lock task
+        startActivity(launchIntent)
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                startLockTask()
+                Log.d("KIOSK", "Kiosk Mode ON for $packageName")
+            }
+        }, 1000) // delay agar app target sempat terbuka
     }
 
     private fun enableKioskModeLauncher() {
@@ -160,6 +198,43 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    fun startAppPinning(packageName: String) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            if (!isLockTaskPermitted()) {
+                // Minta user untuk aktifkan manual pinning (pinning muncul dialog)
+                val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+                if (launchIntent != null) {
+                    startActivity(launchIntent)
+
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            startLockTask()
+                        }
+                    }, 1000)
+                }
+
+            } else {
+                // Jika sudah diizinkan, bisa langsung lock
+                val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+                if (launchIntent != null) {
+                    startActivity(launchIntent)
+
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            startLockTask()
+                        }
+                    }, 1000)
+                }
+
+            }
+        }
+    }
+
+    fun isLockTaskPermitted(): Boolean {
+        val dpm = getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        return dpm.isLockTaskPermitted(packageName)
     }
 
     private fun runRootCommand(command: String): String {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/root_service.dart';
 import '../widgets/app_tile.dart';
 
@@ -29,6 +30,22 @@ class _AppListScreenState extends State<AppListScreen> {
   // Enable kiosk launcher
   void enableKioskLauncher() {
     RootService.enableKioskLauncher();
+  }
+
+  // Pin
+  void pinApp(String packageName) {
+    RootService.pinApp(packageName);
+  }
+
+  // Unpin
+  void unpinApp() {
+    RootService.disableKiosk();
+  }
+
+  // Set Kiosk Target
+  Future<void> setKioskTarget(String packageName) async {
+    const platform = MethodChannel('root/control');
+    await platform.invokeMethod('setKioskTarget', {'package': packageName});
   }
 
   @override
@@ -65,8 +82,9 @@ class _AppListScreenState extends State<AppListScreen> {
                     onTap: () {
                       RootService.openApp(app['package'] ?? '');
                     },
-                    onLongPress: () =>
-                        RootService.enableKiosk(app['package'] ?? ''),
+                    onLongPress: () async {
+                      await setKioskTarget(app['package'] ?? '');
+                    },
                     child: AppTile(app: app),
                   );
                 },

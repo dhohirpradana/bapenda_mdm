@@ -33,8 +33,19 @@ class RootService {
     await _channel.invokeMethod('enableKioskLauncher');
   }
 
+  // Pin app
+  static Future<void> pinApp(String packageName) async {
+    await _channel.invokeMethod('startAppPinning', {"package": packageName});
+  }
+
   // Disable kiosk mode
   static Future<void> disableKiosk() async {
     await _channel.invokeMethod('disableKiosk');
+  }
+
+  Future<void> setKioskTarget(String packageName) async {
+    await MethodChannel(
+      'root/control',
+    ).invokeMethod('setKioskTarget', {'package': packageName});
   }
 }
