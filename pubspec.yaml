@@ -10,6 +10,11 @@ dependencies:
   flutter:
     sdk: flutter
   change_app_package_name: ^1.5.0
+  pocketbase: ^0.23.0
+  dio: ^5.9.0
+  flutter_secure_storage: ^9.2.4
+  get: ^4.7.2
+  get_storage: ^2.1.1
 
 dev_dependencies:
   flutter_test:

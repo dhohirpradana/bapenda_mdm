@@ -43,9 +43,13 @@ class RootService {
     await _channel.invokeMethod('disableKiosk');
   }
 
-  Future<void> setKioskTarget(String packageName) async {
-    await MethodChannel(
-      'root/control',
-    ).invokeMethod('setKioskTarget', {'package': packageName});
+  // Reboot device
+  static Future<void> rebootDevice() async {
+    await _channel.invokeMethod('rebootDevice');
+  }
+
+  // Set kiosk target
+  static Future<void> setKioskTarget(String packageName) async {
+    await _channel.invokeMethod('setKioskTarget', {'package': packageName});
   }
 }

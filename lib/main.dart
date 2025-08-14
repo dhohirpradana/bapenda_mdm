@@ -1,8 +1,21 @@
+import 'package:bapenda_mdm/controllers/auth_controller.dart';
+import 'package:bapenda_mdm/controllers/configuration_controller.dart';
 import 'package:bapenda_mdm/screens/app_list_screen.dart';
+import 'package:bapenda_mdm/screens/enroll_screen.dart';
+import 'package:bapenda_mdm/services/pocketbase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await GetStorage.init();
+
+  // Restore auth & init controller
+  await PocketBaseService.restoreAuth();
+  Get.put(ConfigurationController());
+
   runApp(const MdmLauncherApp());
 }
 
@@ -26,7 +39,24 @@ class MdmLauncherApp extends StatelessWidget {
       title: 'MDM Launcher',
       theme: ThemeData.dark(),
       debugShowCheckedModeBanner: false,
-      home: const AppListScreen(),
+      home: GetBuilder<AuthController>(
+        init: AuthController(),
+        builder: (authCtrl) {
+          if (authCtrl.loading.value) {
+            return const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
+            );
+          }
+
+          if (!authCtrl.isLoggedIn.value) {
+            return const EnrollScreen();
+          }
+
+          return AppListScreen();
+        },
+      ),
     );
   }
 }

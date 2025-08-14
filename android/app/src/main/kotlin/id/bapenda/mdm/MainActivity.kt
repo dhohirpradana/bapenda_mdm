@@ -78,6 +78,10 @@ class MainActivity : FlutterActivity() {
                             result.error("INVALID_CMD", "Command is null", null)
                         }
                     }
+                    "rebootDevice" -> {
+                        rebootDevice()
+                        result.success("Reboot command executed")
+                    }
                     "openApp" -> {
                         val packageName = call.argument<String>("package")
                         if (packageName != null) {
@@ -250,6 +254,14 @@ class MainActivity : FlutterActivity() {
             output.toString()
         } catch (e: Exception) {
             "Error: ${e.message}"
+        }
+    }
+
+    fun rebootDevice() {
+        try {
+            Runtime.getRuntime().exec(arrayOf("su", "-c", "reboot"))
+        } catch (e: Exception) {
+            Log.e("ForegroundService", "Failed to reboot: ${e.message}")
         }
     }
 
