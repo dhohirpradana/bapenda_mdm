@@ -14,6 +14,12 @@ class ConfigurationController extends GetxController {
     final installedApps = await RootService.getInstalledApps();
     apps.value = installedApps;
 
+    // installed apps packageids
+    // final installedAppPackageIds = installedApps
+    //     .map((app) => app['package'])
+    //     .toList();
+    // debugPrint("Installed apps package IDs: $installedAppPackageIds");
+
     debugPrint("Updating configuration with data: $data");
     screensaverType.value = data['screensaverType'] ?? '';
     screensaverImage.value = data['screensaverImage'] ?? '';

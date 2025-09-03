@@ -30,18 +30,22 @@ class PocketBaseService {
     required String platform,
     required String osVersion,
     required String appVersion,
+    required String tailscaleIp,
   }) async {
     try {
       authController.setLoading(true);
 
       final jsonData = {
         "code": code,
+        "ipAddress": tailscaleIp,
         "deviceId": deviceId,
         "displayName": displayName,
         "platform": platform,
         "osVersion": osVersion,
         "appVersion": appVersion,
       };
+
+      // debugPrint("Enrolling device with data: $jsonData");
 
       final res = await dio.post('/enroll', data: jsonData);
 
@@ -50,6 +54,8 @@ class PocketBaseService {
       final password = data['password'];
       _deviceRecordId = data['deviceRecordId'];
       _configurationId = data['configurationId'];
+
+      debugPrint("Enroll response data: $data");
 
       // login ke PocketBase
       if (password != null && password.isNotEmpty) {
@@ -145,9 +151,17 @@ class PocketBaseService {
           .getOne(_configurationId!);
       configController.updateFromPocketBase(config.toJson());
 
-      // simpan data device dan configuration
-      storage.write('deviceRecordId', _deviceRecordId);
+      // debugPrint("Configuration ID: $_configurationId");
+      // debugPrint("Device ID: $deviceRecordId");
+
+      // subscribe to device and configuration
+      await subscribeToDevice(deviceRecordId);
+      await subscribeToConfiguration(_configurationId!);
+
+      // simpan configurationId
       storage.write('configurationId', _configurationId);
+
+      authController.setLoggedIn(true);
     } catch (e) {
       debugPrint("Login error: $e");
       authController.setLoggedIn(false);
@@ -157,6 +171,7 @@ class PocketBaseService {
 
   static Future<void> restoreAuth() async {
     final deviceId = storage.read('deviceRecordId');
+    debugPrint("Restoring auth, deviceId: $deviceId");
     if (deviceId != null) {
       await refreshDeviceAndConfiguration(deviceId);
     } else {
@@ -172,6 +187,7 @@ class PocketBaseService {
     storage.remove('configurationId');
     storage.remove('email');
     storage.remove('password');
+    authController.setLoggedIn(false);
   }
 
   static bool isLoggedIn() {
