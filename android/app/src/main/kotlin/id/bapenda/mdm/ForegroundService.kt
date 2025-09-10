@@ -20,7 +20,7 @@ class ForegroundService : Service() {
     private var handler: Handler? = null
     private var runnable: Runnable? = null
     private var isScreensaverShown = false
-    private val interval: Long = 60_000 // 60 detik
+    private val interval: Long = 10_000 // 10 detik
 
     // Screensaver vars
     private var isScreensaverEnabled: Boolean = false
@@ -30,6 +30,8 @@ class ForegroundService : Service() {
     private var screensaverVideoFile: File? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    private var fileObserver: FileObserver? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -56,9 +58,7 @@ class ForegroundService : Service() {
 
         startForeground(1, notification)
 
-        runnable = Runnable {
-            showOverlay()
-        }
+        runnable = Runnable { showOverlay() }
         resetIdleTimer()
 
         // Receiver untuk reset
@@ -69,6 +69,23 @@ class ForegroundService : Service() {
             registerReceiver(resetReceiver, filter)
         }
         Log.d(TAG, "Service onCreate finished, receiver registered")
+
+        // ==== FILE OBSERVER ====
+        val dir = getExternalFilesDir(null)
+        val configFile = File(dir, "screensaver_config.json")
+        fileObserver = object : FileObserver(configFile.path, CLOSE_WRITE) {
+            override fun onEvent(event: Int, path: String?) {
+                if (event == CLOSE_WRITE) {
+                    Log.d(TAG, "screensaver_config.json changed, reloading...")
+
+                    // Jalankan di main thread
+                    handler?.post {
+                        loadScreensaverConfig()
+                    }
+                }
+            }
+        }
+        fileObserver?.startWatching()
     }
 
     override fun onDestroy() {
@@ -105,6 +122,7 @@ class ForegroundService : Service() {
     private fun loadScreensaverConfig() {
         val dir = getExternalFilesDir(null) ?: return
         val file = File(dir, "screensaver_config.json")
+        Log.d(TAG, "Loading screensaver config from: ${file.path}")
         if (!file.exists()) {
             Log.d(TAG, "Screensaver config file does not exist")
             return
@@ -115,6 +133,7 @@ class ForegroundService : Service() {
             isScreensaverEnabled = json.optBoolean("isEnabled", false)
             screensaverType = json.optString("type")
             screensaverText = json.optString("text")
+            interval = json.optLong("interval", 10_000).coerceAtLeast(10_000)
             screensaverImageFile = json.optString("imagePath")
                 .takeIf { path: String -> path.isNotEmpty() }
                 ?.let { path: String -> File(path) }
@@ -170,16 +189,19 @@ class ForegroundService : Service() {
                     layout.addView(videoView, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
                 } ?: Log.d(TAG, "Video file not found")
             }
+            "TEXT" -> {
+                Log.d(TAG, "Displaying text: $screensaverText")
+                val textView = TextView(this)
+                textView.text = screensaverText ?: ""
+                textView.setTextColor(Color.WHITE)
+                textView.textSize = 24f
+                textView.gravity = Gravity.CENTER
+                layout.addView(textView, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+            }
+            else -> {
+                Log.d(TAG, "Unknown screensaver type: $screensaverType")
+            }
         }
-
-        // Text overlay
-        val textView = TextView(this).apply {
-            textSize = 48f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            text = screensaverText ?: ""
-        }
-        layout.addView(textView, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
 
         layout.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {

@@ -38,6 +38,10 @@ class ConfigurationController extends GetxController {
     File? localImage;
     File? localVideo;
 
+    debugPrint("Screensaver type: ${screensaverType.value}");
+    debugPrint("Screensaver image: ${screensaverImage.value}");
+    debugPrint("Screensaver video: ${screensaverVideo.value}");
+
     if (screensaverType.value == "IMAGE" && screensaverImage.value.isNotEmpty) {
       localImage = await downloadFile(imageUrl, screensaverImage.value);
     } else if (screensaverType.value == "VIDEO" &&
@@ -51,6 +55,7 @@ class ConfigurationController extends GetxController {
       text: screensaverText.value,
       imagePath: localImage?.path,
       videoPath: localVideo?.path,
+      interval: data['screensaverInterval'] ?? 10000,
     );
 
     // Kiosk handling
@@ -90,11 +95,19 @@ Future<File> saveScreensaverConfig({
   String? text,
   String? imagePath,
   String? videoPath,
+  int interval = 10000,
 }) async {
-  final dir = await getApplicationDocumentsDirectory();
-  final file = File('${dir.path}/screensaver_config.json');
-
+  // final dir = await getApplicationDocumentsDirectory();
+  final fdir =
+      "/storage/emulated/0/Android/data/id.bapenda.mdm/files/screensaver_config.json";
+  // final file = File('${dir.path}/screensaver_config.json');
+  final file = File(fdir);
   debugPrint("Saving screensaver config to: ${file.path}");
+
+  // validasi minimal interval 10 detik
+  if (interval < 10000) {
+    interval = 10000;
+  }
 
   final data = {
     'isEnabled': isEnabled,
@@ -102,12 +115,16 @@ Future<File> saveScreensaverConfig({
     'text': text ?? '',
     'imagePath': imagePath ?? '',
     'videoPath': videoPath ?? '',
+    'interval': interval,
   };
+
+  debugPrint("Screensaver config data: $data");
 
   return file.writeAsString(jsonEncode(data));
 }
 
 Future<File> downloadFile(String url, String filename) async {
+  debugPrint("Downloading file from $url");
   final dir = await getApplicationDocumentsDirectory();
   final filePath = "${dir.path}/$filename";
   final file = File(filePath);
