@@ -1,3 +1,4 @@
+import 'package:bapenda_mdm/constants/constant.dart';
 import 'package:bapenda_mdm/controllers/auth_controller.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -7,7 +8,7 @@ import 'package:pocketbase/pocketbase.dart';
 import '../controllers/configuration_controller.dart';
 
 class PocketBaseService {
-  static final String backendUrl = 'http://10.1.111.141:31468';
+  static final String backendUrl = Constants.BACKEND_URL;
   static final Dio dio = Dio(
     BaseOptions(
       baseUrl: backendUrl,
@@ -15,7 +16,7 @@ class PocketBaseService {
       receiveTimeout: Duration(seconds: 30),
     ),
   );
-  static final pb = PocketBase('http://10.1.111.141:31269');
+  static final pb = PocketBase(Constants.POCKETBASE_URL);
   static final storage = GetStorage();
   static String? _configurationId;
   static String? _deviceRecordId;

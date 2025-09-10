@@ -133,6 +133,7 @@ class MainActivity : FlutterActivity() {
                         }
                         result.success("Foreground service started")
                     }
+
                     else -> result.notImplemented()
                 }
             }

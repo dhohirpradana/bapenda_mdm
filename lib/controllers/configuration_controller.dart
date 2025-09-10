@@ -1,7 +1,12 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:bapenda_mdm/constants/constant.dart';
 import 'package:bapenda_mdm/services/kiosk_service.dart';
 import 'package:bapenda_mdm/services/root_service.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:get/get.dart';
+import 'package:path_provider/path_provider.dart';
 
 class ConfigurationController extends GetxController {
   var screensaverType = ''.obs;
@@ -13,38 +18,55 @@ class ConfigurationController extends GetxController {
 
   void updateFromPocketBase(Map<String, dynamic> data) async {
     final installedApps = await RootService.getInstalledApps();
-    final KioskService kioskService = KioskService();
     apps.value = installedApps;
-
-    // installed apps packageids
-    // final installedAppPackageIds = installedApps
-    //     .map((app) => app['package'])
-    //     .toList();
-    // debugPrint("Installed apps package IDs: $installedAppPackageIds");
-
     debugPrint("Updating configuration with data: $data");
+
     screensaverType.value = data['screensaverType'] ?? '';
     screensaverImage.value = data['screensaverImage'] ?? '';
     screensaverText.value = data['screensaverText'] ?? '';
     screensaverVideo.value = data['screensaverVideo'] ?? '';
     allowedApps.value = List<String>.from(data['allowedApps'] ?? []);
 
-    // debugPrint("Updated allowedApps: $allowedApps");
+    final collectionId = data['collectionId'];
+    final recordId = data['id'];
+
+    final imageUrl =
+        "${Constants.POCKETBASE_URL}/api/files/$collectionId/$recordId/${screensaverImage.value}";
+    final videoUrl =
+        "${Constants.POCKETBASE_URL}/api/files/$collectionId/$recordId/${screensaverVideo.value}";
+
+    File? localImage;
+    File? localVideo;
+
+    if (screensaverType.value == "IMAGE" && screensaverImage.value.isNotEmpty) {
+      localImage = await downloadFile(imageUrl, screensaverImage.value);
+    } else if (screensaverType.value == "VIDEO" &&
+        screensaverVideo.value.isNotEmpty) {
+      localVideo = await downloadFile(videoUrl, screensaverVideo.value);
+    }
+
+    await saveScreensaverConfig(
+      isEnabled: screensaverType.value.isNotEmpty,
+      type: screensaverType.value,
+      text: screensaverText.value,
+      imagePath: localImage?.path,
+      videoPath: localVideo?.path,
+    );
+
+    // Kiosk handling
     final isKioskEnabled = data["isKioskEnabled"] ?? false;
     final kioskTarget = data["kioskTarget"] ?? '';
+    final kioskService = KioskService();
 
     if (isKioskEnabled && kioskTarget.isNotEmpty) {
       debugPrint("Setting kiosk mode for target: $kioskTarget");
       await kioskService.setKioskConfig(enabled: true, target: kioskTarget);
-      // await RootService.setKioskTarget(kioskTarget);
     } else {
       debugPrint("Disabling kiosk mode");
       await kioskService.setKioskConfig(enabled: false, target: '');
       await kioskService.stopKioskDaemon();
-      // await RootService.disableKiosk();
     }
 
-    // Filter ulang apps kalau allowedApps berubah
     filterApps();
   }
 
@@ -60,4 +82,46 @@ class ConfigurationController extends GetxController {
           .toList();
     }
   }
+}
+
+Future<File> saveScreensaverConfig({
+  required bool isEnabled,
+  required String type,
+  String? text,
+  String? imagePath,
+  String? videoPath,
+}) async {
+  final dir = await getApplicationDocumentsDirectory();
+  final file = File('${dir.path}/screensaver_config.json');
+
+  debugPrint("Saving screensaver config to: ${file.path}");
+
+  final data = {
+    'isEnabled': isEnabled,
+    'type': type,
+    'text': text ?? '',
+    'imagePath': imagePath ?? '',
+    'videoPath': videoPath ?? '',
+  };
+
+  return file.writeAsString(jsonEncode(data));
+}
+
+Future<File> downloadFile(String url, String filename) async {
+  final dir = await getApplicationDocumentsDirectory();
+  final filePath = "${dir.path}/$filename";
+  final file = File(filePath);
+
+  if (!await file.exists()) {
+    try {
+      await Dio().download(url, filePath);
+      debugPrint("Downloaded $filename to $filePath");
+    } catch (e) {
+      debugPrint("Failed to download $filename: $e");
+    }
+  } else {
+    debugPrint("File already exists: $filePath");
+  }
+
+  return file;
 }

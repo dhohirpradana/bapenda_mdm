@@ -4,27 +4,40 @@ import android.app.*
 import android.content.*
 import android.graphics.*
 import android.os.*
+import android.util.Log
 import android.view.*
 import android.widget.*
 import androidx.core.app.NotificationCompat
+import java.io.File
+import org.json.JSONObject
 
 class ForegroundService : Service() {
+
+    private val TAG = "ForegroundService"
     private val CHANNEL_ID = "BapendaMDMForegroundChannel"
     private var windowManager: WindowManager? = null
     private var overlayView: View? = null
     private var handler: Handler? = null
     private var runnable: Runnable? = null
     private var isScreensaverShown = false
-    private val interval: Long = 30_000 // 30 detik
+    private val interval: Long = 60_000 // 60 detik
+
+    // Screensaver vars
+    private var isScreensaverEnabled: Boolean = false
+    private var screensaverType: String? = null
+    private var screensaverText: String? = null
+    private var screensaverImageFile: File? = null
+    private var screensaverVideoFile: File? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "Service onCreate")
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         handler = Handler(Looper.getMainLooper())
 
-        // Notifikasi agar service jalan di background
+        // Foreground notification
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
@@ -43,68 +56,134 @@ class ForegroundService : Service() {
 
         startForeground(1, notification)
 
-        // Runnable untuk menampilkan screensaver setelah 10 detik
         runnable = Runnable {
             showOverlay()
         }
-
         resetIdleTimer()
 
-        // Daftar broadcast reset
+        // Receiver untuk reset
         val filter = IntentFilter("id.bapenda.mdm.RESET_IDLE")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(resetReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             registerReceiver(resetReceiver, filter)
         }
+        Log.d(TAG, "Service onCreate finished, receiver registered")
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        Log.d(TAG, "Service onDestroy")
         handler?.removeCallbacks(runnable!!)
         unregisterReceiver(resetReceiver)
         hideOverlay()
     }
 
-    // Receiver untuk reset dari luar
     private val resetReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
+            Log.d(TAG, "RESET_IDLE broadcast received")
             resetIdleTimer()
         }
     }
 
     private fun resetIdleTimer() {
+        Log.d(TAG, "Resetting idle timer")
         handler?.removeCallbacks(runnable!!)
         handler?.postDelayed(runnable!!, interval)
         if (isScreensaverShown) {
+            Log.d(TAG, "Hiding overlay due to idle reset")
             hideOverlay()
         }
     }
 
-    private fun showOverlay() {
-        if (overlayView != null) return
-        isScreensaverShown = true
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "onStartCommand called")
+        loadScreensaverConfig()
+        return START_STICKY
+    }
 
+    private fun loadScreensaverConfig() {
+        val dir = getExternalFilesDir(null) ?: return
+        val file = File(dir, "screensaver_config.json")
+        if (!file.exists()) {
+            Log.d(TAG, "Screensaver config file does not exist")
+            return
+        }
+
+        try {
+            val json = JSONObject(file.readText())
+            isScreensaverEnabled = json.optBoolean("isEnabled", false)
+            screensaverType = json.optString("type")
+            screensaverText = json.optString("text")
+            screensaverImageFile = json.optString("imagePath")
+                .takeIf { path: String -> path.isNotEmpty() }
+                ?.let { path: String -> File(path) }
+            screensaverVideoFile = json.optString("videoPath")
+                .takeIf { path: String -> path.isNotEmpty() }
+                ?.let { path: String -> File(path) }
+
+            Log.d(TAG, "Screensaver loaded: enabled=$isScreensaverEnabled, type=$screensaverType, text=$screensaverText")
+            Log.d(TAG, "Image file: ${screensaverImageFile?.path}, Video file: ${screensaverVideoFile?.path}")
+
+            if (isScreensaverShown) hideOverlay()
+            resetIdleTimer()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load screensaver config", e)
+        }
+    }
+
+    private fun showOverlay() {
+        Log.d(TAG, "Attempting to show overlay")
+        if (!isScreensaverEnabled) {
+            Log.d(TAG, "Screensaver disabled, returning")
+            return
+        }
+        if (overlayView != null) {
+            Log.d(TAG, "Overlay already shown, returning")
+            return
+        }
+
+        isScreensaverShown = true
         val layout = FrameLayout(this)
         layout.setBackgroundColor(Color.BLACK)
 
-        val text = TextView(this).apply {
+        // Image or Video
+        when (screensaverType) {
+            "IMAGE" -> {
+                screensaverImageFile?.takeIf { it.exists() }?.let {
+                    Log.d(TAG, "Displaying image: ${it.path}")
+                    val imageView = ImageView(this)
+                    imageView.setImageBitmap(BitmapFactory.decodeFile(it.path))
+                    imageView.scaleType = ImageView.ScaleType.FIT_CENTER
+                    layout.addView(imageView, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+                } ?: Log.d(TAG, "Image file not found")
+            }
+            "VIDEO" -> {
+                screensaverVideoFile?.takeIf { it.exists() }?.let {
+                    Log.d(TAG, "Playing video: ${it.path}")
+                    val videoView = VideoView(this)
+                    videoView.setVideoPath(it.path)
+                    videoView.setOnPreparedListener { mp ->
+                        mp.isLooping = true
+                        videoView.start()
+                    }
+                    layout.addView(videoView, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+                } ?: Log.d(TAG, "Video file not found")
+            }
+        }
+
+        // Text overlay
+        val textView = TextView(this).apply {
             textSize = 48f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
-            text = "Screensaver aktif"
+            text = screensaverText ?: ""
         }
-
-        layout.addView(
-            text,
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-        )
+        layout.addView(textView, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
 
         layout.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {
+                Log.d(TAG, "Overlay touched, resetting idle timer")
                 resetIdleTimer()
                 true
             } else false
@@ -127,22 +206,20 @@ class ForegroundService : Service() {
 
         overlayView = layout
         windowManager?.addView(overlayView, params)
+        Log.d(TAG, "Overlay added to window")
 
-        // Immersive mode supaya status bar hilang
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            overlayView?.systemUiVisibility = (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                    or View.SYSTEM_UI_FLAG_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE)
-        }
+        // Immersive mode
+        overlayView?.systemUiVisibility = (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                or View.SYSTEM_UI_FLAG_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE)
     }
 
     private fun hideOverlay() {
-        overlayView?.let {
-            windowManager?.removeViewImmediate(it)
-        }
+        Log.d(TAG, "Hiding overlay")
+        overlayView?.let { windowManager?.removeViewImmediate(it) }
         overlayView = null
         isScreensaverShown = false
     }
