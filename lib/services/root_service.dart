@@ -50,6 +50,6 @@ class RootService {
 
   // Set kiosk target
   static Future<void> setKioskTarget(String packageName) async {
-    await _channel.invokeMethod('setKioskTarget', {'package': packageName});
+    await _channel.invokeMethod('startAppPinning', {'package': packageName});
   }
 }

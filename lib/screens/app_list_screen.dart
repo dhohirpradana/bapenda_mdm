@@ -1,3 +1,4 @@
+import 'package:bapenda_mdm/services/kiosk_service.dart';
 import 'package:bapenda_mdm/services/pocketbase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -8,6 +9,7 @@ import '../widgets/app_tile.dart';
 class AppListScreen extends StatelessWidget {
   AppListScreen({super.key});
   final configCtrl = Get.find<ConfigurationController>();
+  final KioskService kioskService = KioskService();
 
   Future<void> loadApps() async {
     final data = await RootService.getInstalledApps();
@@ -18,7 +20,11 @@ class AppListScreen extends StatelessWidget {
   }
 
   Future<void> setKioskTarget(String packageName) async {
-    await RootService.setKioskTarget(packageName);
+    // await RootService.setKioskTarget(packageName);
+    // await setKioskConfig(enabled: true, target: packageName);
+    // disable kiosk daemon first
+    await kioskService.setKioskConfig(enabled: false, target: packageName);
+    await kioskService.stopKioskDaemon();
   }
 
   @override
@@ -78,6 +84,9 @@ class AppListScreen extends StatelessWidget {
               onLongPress: () {
                 // RootService.rebootDevice();
                 PocketBaseService.logout();
+                // Navigator.of(context).push(
+                //   MaterialPageRoute(builder: (_) => const ScreensaverPage()),
+                // );
               },
             ),
           ],

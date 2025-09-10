@@ -1,5 +1,6 @@
 package id.bapenda.mdm
 
+import android.view.MotionEvent
 import android.content.pm.PackageManager
 import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
@@ -25,6 +26,10 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.preference.PreferenceManager
+import android.app.ActivityManager
+import androidx.core.content.ContextCompat
+import android.net.Uri
+import android.provider.Settings
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "root/control"
@@ -40,6 +45,17 @@ class MainActivity : FlutterActivity() {
         if (!dpm.isAdminActive(deviceAdminComponent) && !deviceAdminRequested) {
             deviceAdminRequested = true
             requestDeviceAdmin()
+        }
+
+        // Request izin tampil di atas aplikasi lain
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(this)) {
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
+                startActivityForResult(intent, 1234) // requestCode bebas
+            }
         }
     }
 
@@ -99,35 +115,14 @@ class MainActivity : FlutterActivity() {
                     "getInstalledApps" -> {
                         result.success(getInstalledApps(packageManager))
                     }
-                    "enableKiosk" -> {
-                        val packageName = call.argument<String>("package")
-                        if (packageName != null) {
-                            enableKioskMode(packageName)
-                            result.success("Kiosk Mode Enabled")
-                        } else {
-                            result.error("INVALID_PACKAGE", "Package name is null", null)
-                        }
-                    }
-                    "enableKioskLauncher" -> {
-                        enableKioskModeLauncher()
-                        result.success("Kiosk Mode Launcher Enabled")
-                    }
-                    "disableKiosk" -> {
-                        disableKioskMode()
-                        result.success("Kiosk Mode Disabled")
+                    "sendResetIdle" -> {
+                        val intent = Intent("id.bapenda.mdm.RESET_IDLE")
+                        sendBroadcast(intent)
+                        result.success("Idle timer reset")
                     }
                     "enableDeviceAdmin" -> {
                         requestDeviceAdmin()
                         result.success("Requesting device admin activation")
-                    }
-                    "startAppPinning" -> {
-                        val packageName = call.argument<String>("package")
-                        if (packageName != null) {
-                            startAppPinning(packageName)
-                            result.success("App pinning started")
-                        } else {
-                            result.error("INVALID_PACKAGE", "Package name is null", null)
-                        }
                     }
                     "startForegroundService" -> {
                         val intent = Intent(this, ForegroundService::class.java)
@@ -138,107 +133,9 @@ class MainActivity : FlutterActivity() {
                         }
                         result.success("Foreground service started")
                     }
-                    "setKioskTarget" -> {
-                        val pkg = call.argument<String>("package")
-                        if (pkg != null) {
-                            val prefs = PreferenceManager.getDefaultSharedPreferences(context)
-                            prefs.edit().putString("kiosk_target_package", pkg).apply()
-                            result.success("Target package set: $pkg")
-                        } else {
-                            result.error("NO_PACKAGE", "Package name null", null)
-                        }
-                    }
                     else -> result.notImplemented()
                 }
             }
-    }
-
-    private fun enableKioskMode(packageName: String) {
-        val dpm = getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
-        if (!dpm.isAdminActive(deviceAdminComponent)) {
-            Log.e("KIOSK", "Device Admin belum aktif, tidak bisa enable kiosk")
-            return
-        }
-
-        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
-        if (launchIntent == null) {
-            Log.e("KIOSK", "App not found: $packageName")
-            return
-        }
-
-        // Set paket yang diizinkan lock task (kiosk)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            dpm.setLockTaskPackages(deviceAdminComponent, arrayOf(packageName))
-        }
-
-        // Jalankan aplikasi target dan aktifkan lock task
-        startActivity(launchIntent)
-        Handler(Looper.getMainLooper()).postDelayed({
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                startLockTask()
-                Log.d("KIOSK", "Kiosk Mode ON for $packageName")
-            }
-        }, 1000) // delay agar app target sempat terbuka
-    }
-
-    private fun enableKioskModeLauncher() {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                startLockTask()
-                Log.d("KIOSK", "Kiosk Mode ON")
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-
-    private fun disableKioskMode() {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                stopLockTask()
-                Log.d("KIOSK", "Kiosk Mode OFF")
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    fun startAppPinning(packageName: String) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            if (!isLockTaskPermitted()) {
-                // Minta user untuk aktifkan manual pinning (pinning muncul dialog)
-                val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
-                if (launchIntent != null) {
-                    startActivity(launchIntent)
-
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            startLockTask()
-                        }
-                    }, 1000)
-                }
-
-            } else {
-                // Jika sudah diizinkan, bisa langsung lock
-                val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
-                if (launchIntent != null) {
-                    startActivity(launchIntent)
-
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            startLockTask()
-                        }
-                    }, 1000)
-                }
-
-            }
-        }
-    }
-
-    fun isLockTaskPermitted(): Boolean {
-        val dpm = getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
-        return dpm.isLockTaskPermitted(packageName)
     }
 
     private fun runRootCommand(command: String): String {

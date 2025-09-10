@@ -19,17 +19,29 @@ void main() async {
   runApp(const MdmLauncherApp());
 }
 
-class MdmLauncherApp extends StatelessWidget {
+class MdmLauncherApp extends StatefulWidget {
   const MdmLauncherApp({super.key});
   static const MethodChannel _channel = MethodChannel('root/control');
 
+  @override
+  State<MdmLauncherApp> createState() => _MdmLauncherAppState();
+}
+
+class _MdmLauncherAppState extends State<MdmLauncherApp> {
   Future<void> startForegroundService() async {
     try {
-      final result = await _channel.invokeMethod('startForegroundService');
+      final result = await MdmLauncherApp._channel.invokeMethod(
+        'startForegroundService',
+      );
       debugPrint(result);
     } catch (e) {
       debugPrint('Error starting foreground service: $e');
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
   }
 
   @override
