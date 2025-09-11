@@ -37,6 +37,10 @@ class MainActivity : FlutterActivity() {
     private val REQUEST_CODE_ENABLE_ADMIN = 1001
     private var deviceAdminRequested = false
 
+    private lateinit var methodChannel: MethodChannel
+    private val handler = Handler(Looper.getMainLooper())
+    private val interval: Long = 60_000
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         deviceAdminComponent = ComponentName(this, YourDeviceAdminReceiver::class.java)
@@ -54,9 +58,23 @@ class MainActivity : FlutterActivity() {
                     Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:$packageName")
                 )
-                startActivityForResult(intent, 1234) // requestCode bebas
+                startActivityForResult(intent, 1234)
             }
         }
+    }
+
+    private fun startPeriodicRestoreAuth() {
+        Log.d("MainActivity", "Starting periodic restoreAuth calls")
+        handler.postDelayed(object : Runnable {
+            override fun run() {
+                // panggil restoreAuth() di Dart
+                Log.d("MainActivity", "Triggering restoreAuth() in Dart")
+                methodChannel.invokeMethod("restoreAuth", null)
+
+                // ulangi lagi setelah interval
+                handler.postDelayed(this, interval)
+            }
+        }, interval)
     }
 
     private fun requestDeviceAdmin() {
@@ -82,6 +100,13 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        methodChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            CHANNEL
+        )
+
+        startPeriodicRestoreAuth()
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->

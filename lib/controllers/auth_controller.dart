@@ -7,11 +7,6 @@ class AuthController extends GetxController {
   var errorMessage = RxnString();
   final codeController = TextEditingController();
 
-  @override
-  void onInit() {
-    super.onInit();
-  }
-
   // set logged in status
   void setLoggedIn(bool value) {
     isLoggedIn.value = value;

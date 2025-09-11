@@ -110,6 +110,7 @@ class PocketBaseService {
 
   static Future<void> subscribeToDevice(String deviceRecordId) async {
     await pb.collection('devices').subscribe(deviceRecordId, (e) async {
+      debugPrint("Device subscription event: $e");
       if (e.record != null) {
         final newConfigId = e.record!.data['configuration'];
         if (newConfigId != null && newConfigId != _configurationId) {
@@ -165,7 +166,7 @@ class PocketBaseService {
       authController.setLoggedIn(true);
     } catch (e) {
       debugPrint("Login error: $e");
-      authController.setLoggedIn(false);
+      // authController.setLoggedIn(false);
       return;
     }
   }

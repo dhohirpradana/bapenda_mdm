@@ -35,41 +35,28 @@ class AppListScreen extends StatelessWidget {
         child: Obx(() {
           final apps = configCtrl.apps;
 
-          if (apps.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(color: Colors.white),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Loading apps...',
-                    style: TextStyle(color: Colors.grey[400], fontSize: 16),
-                  ),
-                ],
+          return AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: GridView.builder(
+              padding: const EdgeInsets.all(16),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 0.8,
               ),
-            );
-          }
-
-          return GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 0.8,
+              itemCount: apps.length,
+              itemBuilder: (context, index) {
+                final app = apps[index];
+                return GestureDetector(
+                  onTap: () => RootService.openApp(app['package'] ?? ''),
+                  onLongPress: () async {
+                    await setKioskTarget(app['package'] ?? '');
+                  },
+                  child: AppTile(app: app),
+                );
+              },
             ),
-            itemCount: apps.length,
-            itemBuilder: (context, index) {
-              final app = apps[index];
-              return GestureDetector(
-                onTap: () => RootService.openApp(app['package'] ?? ''),
-                onLongPress: () async {
-                  await setKioskTarget(app['package'] ?? '');
-                },
-                child: AppTile(app: app),
-              );
-            },
           );
         }),
       ),

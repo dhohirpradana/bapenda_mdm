@@ -4,7 +4,7 @@ import 'package:bapenda_mdm/constants/constant.dart';
 import 'package:bapenda_mdm/services/kiosk_service.dart';
 import 'package:bapenda_mdm/services/root_service.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -14,19 +14,28 @@ class ConfigurationController extends GetxController {
   var screensaverText = ''.obs;
   var screensaverVideo = ''.obs;
   var allowedApps = <String>[].obs;
+
+  /// Semua aplikasi yang terinstall
+  List<Map<String, String>> allApps = [];
+
+  /// Aplikasi yang difilter (ditampilkan ke UI)
   var apps = <Map<String, String>>[].obs;
 
-  void updateFromPocketBase(Map<String, dynamic> data) async {
-    final installedApps = await RootService.getInstalledApps();
-    apps.value = installedApps;
+  Future<void> updateFromPocketBase(Map<String, dynamic> data) async {
     debugPrint("Updating configuration with data: $data");
 
+    // === Update Apps hanya jika berubah ===
+    final installedApps = await RootService.getInstalledApps();
+    setInstalledApps(List<Map<String, String>>.from(installedApps));
+
+    // === Screensaver ===
     screensaverType.value = data['screensaverType'] ?? '';
     screensaverImage.value = data['screensaverImage'] ?? '';
     screensaverText.value = data['screensaverText'] ?? '';
     screensaverVideo.value = data['screensaverVideo'] ?? '';
     allowedApps.value = List<String>.from(data['allowedApps'] ?? []);
 
+    final isScreensaverEnabled = data['isScreensaverEnabled'] ?? false;
     final collectionId = data['collectionId'];
     final recordId = data['id'];
 
@@ -42,23 +51,27 @@ class ConfigurationController extends GetxController {
     debugPrint("Screensaver image: ${screensaverImage.value}");
     debugPrint("Screensaver video: ${screensaverVideo.value}");
 
+    final futures = <Future<File?>>[];
     if (screensaverType.value == "IMAGE" && screensaverImage.value.isNotEmpty) {
-      localImage = await downloadFile(imageUrl, screensaverImage.value);
-    } else if (screensaverType.value == "VIDEO" &&
-        screensaverVideo.value.isNotEmpty) {
-      localVideo = await downloadFile(videoUrl, screensaverVideo.value);
+      futures.add(downloadFile(imageUrl, screensaverImage.value));
     }
+    if (screensaverType.value == "VIDEO" && screensaverVideo.value.isNotEmpty) {
+      futures.add(downloadFile(videoUrl, screensaverVideo.value));
+    }
+    final results = await Future.wait(futures);
+    if (results.isNotEmpty) localImage = results[0];
+    if (results.length > 1) localVideo = results[1];
 
     await saveScreensaverConfig(
-      isEnabled: screensaverType.value.isNotEmpty,
+      isEnabled: isScreensaverEnabled,
       type: screensaverType.value,
       text: screensaverText.value,
       imagePath: localImage?.path,
       videoPath: localVideo?.path,
-      interval: data['screensaverInterval'] ?? 10000,
+      interval: data['screensaverInterval'] ?? 10,
     );
 
-    // Kiosk handling
+    // === Kiosk Mode ===
     final isKioskEnabled = data["isKioskEnabled"] ?? false;
     final kioskTarget = data["kioskTarget"] ?? '';
     final kioskService = KioskService();
@@ -76,16 +89,30 @@ class ConfigurationController extends GetxController {
   }
 
   void setInstalledApps(List<Map<String, String>> installed) {
-    apps.value = installed;
-    filterApps();
+    if (!_listEquals(allApps, installed)) {
+      allApps = installed;
+      filterApps();
+    } else {
+      debugPrint("Installed apps unchanged, skip update");
+    }
   }
 
   void filterApps() {
     if (allowedApps.isNotEmpty) {
-      apps.value = apps
+      apps.value = allApps
           .where((app) => allowedApps.contains(app['package']))
           .toList();
+    } else {
+      apps.value = allApps;
     }
+  }
+
+  bool _listEquals(List<Map<String, String>> a, List<Map<String, String>> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i]['package'] != b[i]['package']) return false;
+    }
+    return true;
   }
 }
 
@@ -95,19 +122,14 @@ Future<File> saveScreensaverConfig({
   String? text,
   String? imagePath,
   String? videoPath,
-  int interval = 10000,
+  required int interval,
 }) async {
-  // final dir = await getApplicationDocumentsDirectory();
-  final fdir =
-      "/storage/emulated/0/Android/data/id.bapenda.mdm/files/screensaver_config.json";
-  // final file = File('${dir.path}/screensaver_config.json');
-  final file = File(fdir);
-  debugPrint("Saving screensaver config to: ${file.path}");
+  final file = File(
+    "/storage/emulated/0/Android/data/id.bapenda.mdm/files/screensaver_config.json",
+  );
 
-  // validasi minimal interval 10 detik
-  if (interval < 10000) {
-    interval = 10000;
-  }
+  // validasi minimal 10 detik → simpan dalam ms
+  final intervalMs = (interval < 10 ? 10 : interval) * 1000;
 
   final data = {
     'isEnabled': isEnabled,
@@ -115,11 +137,10 @@ Future<File> saveScreensaverConfig({
     'text': text ?? '',
     'imagePath': imagePath ?? '',
     'videoPath': videoPath ?? '',
-    'interval': interval,
+    'interval': intervalMs,
   };
 
-  debugPrint("Screensaver config data: $data");
-
+  debugPrint("Saving screensaver config: $data");
   return file.writeAsString(jsonEncode(data));
 }
 
@@ -129,7 +150,7 @@ Future<File> downloadFile(String url, String filename) async {
   final filePath = "${dir.path}/$filename";
   final file = File(filePath);
 
-  if (!await file.exists()) {
+  if (!await file.exists() || await file.length() == 0) {
     try {
       await Dio().download(url, filePath);
       debugPrint("Downloaded $filename to $filePath");

@@ -10,17 +10,24 @@ import android.widget.*
 import androidx.core.app.NotificationCompat
 import java.io.File
 import org.json.JSONObject
+import java.util.Timer
+import java.util.TimerTask
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.dart.DartExecutor
+import io.flutter.plugin.common.MethodChannel
 
 class ForegroundService : Service() {
+    private var timer: Timer? = null
+    private var methodChannel: MethodChannel? = null
+    private var flutterEngine: FlutterEngine? = null
 
     private val TAG = "ForegroundService"
-    private val CHANNEL_ID = "BapendaMDMForegroundChannel"
+    private val CHANNEL_ID = "BapendaForegroundServiceChannel"
     private var windowManager: WindowManager? = null
     private var overlayView: View? = null
     private var handler: Handler? = null
     private var runnable: Runnable? = null
     private var isScreensaverShown = false
-    private val interval: Long = 10_000 // 10 detik
 
     // Screensaver vars
     private var isScreensaverEnabled: Boolean = false
@@ -28,6 +35,7 @@ class ForegroundService : Service() {
     private var screensaverText: String? = null
     private var screensaverImageFile: File? = null
     private var screensaverVideoFile: File? = null
+    private var interval: Long = 10_000
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -57,6 +65,25 @@ class ForegroundService : Service() {
             .build()
 
         startForeground(1, notification)
+
+        // Setup FlutterEngine untuk panggil Dart
+        // flutterEngine = FlutterEngine(this).apply {
+        //     dartExecutor.executeDartEntrypoint(
+        //         DartExecutor.DartEntrypoint.createDefault()
+        //     )
+        // }
+        // methodChannel = MethodChannel(flutterEngine!!.dartExecutor.binaryMessenger, "foreground_service_channel")
+
+        // // Timer tiap 1 menit untuk panggil restoreAuth di Dart
+        // timer = Timer()
+        // timer?.scheduleAtFixedRate(object : TimerTask() {
+        //     override fun run() {
+        //         Handler(Looper.getMainLooper()).post {
+        //             Log.d(TAG, "Invoke restoreAuth() via MethodChannel (main thread)")
+        //             methodChannel?.invokeMethod("restoreAuth", null)
+        //         }
+        //     }
+        // }, 0, 60 * 1000)
 
         runnable = Runnable { showOverlay() }
         resetIdleTimer()
@@ -94,6 +121,8 @@ class ForegroundService : Service() {
         handler?.removeCallbacks(runnable!!)
         unregisterReceiver(resetReceiver)
         hideOverlay()
+        timer?.cancel()
+        flutterEngine?.destroy()
     }
 
     private val resetReceiver = object : BroadcastReceiver() {
@@ -141,7 +170,7 @@ class ForegroundService : Service() {
                 .takeIf { path: String -> path.isNotEmpty() }
                 ?.let { path: String -> File(path) }
 
-            Log.d(TAG, "Screensaver loaded: enabled=$isScreensaverEnabled, type=$screensaverType, text=$screensaverText")
+            Log.d(TAG, "Screensaver loaded: enabled=$isScreensaverEnabled, type=$screensaverType, text=$screensaverText, interval=$interval")
             Log.d(TAG, "Image file: ${screensaverImageFile?.path}, Video file: ${screensaverVideoFile?.path}")
 
             if (isScreensaverShown) hideOverlay()
@@ -174,19 +203,43 @@ class ForegroundService : Service() {
                     val imageView = ImageView(this)
                     imageView.setImageBitmap(BitmapFactory.decodeFile(it.path))
                     imageView.scaleType = ImageView.ScaleType.FIT_CENTER
-                    layout.addView(imageView, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+                    layout.addView(
+                        imageView,
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT
+                    )
                 } ?: Log.d(TAG, "Image file not found")
             }
             "VIDEO" -> {
-                screensaverVideoFile?.takeIf { it.exists() }?.let {
-                    Log.d(TAG, "Playing video: ${it.path}")
+                screensaverVideoFile?.takeIf { it.exists() }?.let { file ->
+                    Log.d(TAG, "Playing video: ${file.path}")
                     val videoView = VideoView(this)
-                    videoView.setVideoPath(it.path)
+                    videoView.setVideoPath(file.path)
                     videoView.setOnPreparedListener { mp ->
                         mp.isLooping = true
-                        videoView.start()
+
+                        // Hitung scaling proporsional
+                        val videoWidth = mp.videoWidth
+                        val videoHeight = mp.videoHeight
+                        layout.post {
+                            val layoutWidth = layout.width
+                            val layoutHeight = layout.height
+                            val scaleX = layoutWidth.toFloat() / videoWidth
+                            val scaleY = layoutHeight.toFloat() / videoHeight
+                            val scale = minOf(scaleX, scaleY)
+
+                            val lp = FrameLayout.LayoutParams(
+                                (videoWidth * scale).toInt(),
+                                (videoHeight * scale).toInt()
+                            )
+                            lp.gravity = Gravity.CENTER
+                            videoView.layoutParams = lp
+
+                            videoView.start()
+                            Log.d(TAG, "Video started with scaling: $scale")
+                        }
                     }
-                    layout.addView(videoView, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+                    layout.addView(videoView)
                 } ?: Log.d(TAG, "Video file not found")
             }
             "TEXT" -> {
@@ -196,11 +249,13 @@ class ForegroundService : Service() {
                 textView.setTextColor(Color.WHITE)
                 textView.textSize = 24f
                 textView.gravity = Gravity.CENTER
-                layout.addView(textView, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+                layout.addView(
+                    textView,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
             }
-            else -> {
-                Log.d(TAG, "Unknown screensaver type: $screensaverType")
-            }
+            else -> Log.d(TAG, "Unknown screensaver type: $screensaverType")
         }
 
         layout.setOnTouchListener { _, event ->
@@ -221,7 +276,8 @@ class ForegroundService : Service() {
             WindowManager.LayoutParams.FLAG_FULLSCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         )
         params.gravity = Gravity.TOP or Gravity.START

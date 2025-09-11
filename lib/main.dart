@@ -2,6 +2,7 @@ import 'package:bapenda_mdm/controllers/auth_controller.dart';
 import 'package:bapenda_mdm/controllers/configuration_controller.dart';
 import 'package:bapenda_mdm/screens/app_list_screen.dart';
 import 'package:bapenda_mdm/screens/enroll_screen.dart';
+import 'package:bapenda_mdm/services/background_service.dart';
 import 'package:bapenda_mdm/services/pocketbase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,6 +16,8 @@ void main() async {
   // Restore auth & init controller
   await PocketBaseService.restoreAuth();
   Get.put(ConfigurationController());
+
+  await initForegroundChannel();
 
   runApp(const MdmLauncherApp());
 }
