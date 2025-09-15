@@ -1,8 +1,8 @@
 import 'dart:io';
-
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:uuid/uuid.dart';
 import '../controllers/configuration_controller.dart';
 import '../services/pocketbase_service.dart';
@@ -70,6 +70,51 @@ class _EnrollScreenState extends State<EnrollScreen> {
     });
   }
 
+  Future<void> _scanQrPopup() async {
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.black,
+          insetPadding: const EdgeInsets.all(16),
+          child: SizedBox(
+            height: 400,
+            child: Stack(
+              children: [
+                MobileScanner(
+                  controller: MobileScannerController(),
+                  onDetect: (capture) {
+                    final code = capture.barcodes.first.rawValue ?? "";
+                    Navigator.of(context).pop(code); // langsung return QR
+                  },
+                ),
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (result != null && result.isNotEmpty) {
+      setState(() {
+        codeController.text = result;
+      });
+    }
+  }
+
   Future<void> _enroll() async {
     final code = codeController.text.trim();
     final displayName = displayNameController.text.trim();
@@ -77,6 +122,7 @@ class _EnrollScreenState extends State<EnrollScreen> {
 
     if (ipAddress == null) {
       setState(() {
+        tailscaleIp = null;
         errorMessage =
             "Tailscale IP tidak ditemukan. Pastikan Tailscale aktif.";
       });
@@ -112,11 +158,14 @@ class _EnrollScreenState extends State<EnrollScreen> {
         osVersion: androidInfo!.version.release,
         appVersion: "1.0.0",
         tailscaleIp: ipAddress,
+        deviceModel: androidInfo!.model,
+        manufacturer: androidInfo!.manufacturer,
+        type: androidInfo!.device,
       );
 
-      if (!result) {
+      if (!result.success) {
         setState(() {
-          errorMessage = "Code tidak valid atau sudah digunakan";
+          errorMessage = result.message;
           loading = false;
         });
         return;
@@ -362,18 +411,17 @@ class _EnrollScreenState extends State<EnrollScreen> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
             ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red, width: 1),
-            ),
             prefixIcon: Icon(
               Icons.qr_code,
               color: Colors.white.withOpacity(0.5),
             ),
+            suffixIcon: IconButton(
+              icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
+              onPressed: _scanQrPopup,
+            ),
           ),
         ),
         const SizedBox(height: 20),
-
         const Text(
           "Device Name",
           style: TextStyle(

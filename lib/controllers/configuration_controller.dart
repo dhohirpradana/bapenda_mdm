@@ -1,8 +1,11 @@
+// ignore_for_file: invalid_use_of_protected_member
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:bapenda_mdm/constants/constant.dart';
 import 'package:bapenda_mdm/services/kiosk_service.dart';
 import 'package:bapenda_mdm/services/root_service.dart';
+import 'package:collection/collection.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
@@ -21,46 +24,140 @@ class ConfigurationController extends GetxController {
   /// Aplikasi yang difilter (ditampilkan ke UI)
   var apps = <Map<String, String>>[].obs;
 
+  /// Cache untuk menyimpan konfigurasi terakhir
+  Map<String, dynamic> _lastConfiguration = {};
+
   Future<void> updateFromPocketBase(Map<String, dynamic> data) async {
     debugPrint("Updating configuration with data: $data");
+
+    // === Cek perubahan konfigurasi ===
+    if (_isConfigurationUnchanged(data)) {
+      debugPrint("Configuration unchanged, skipping update");
+      return;
+    }
 
     // === Update Apps hanya jika berubah ===
     final installedApps = await RootService.getInstalledApps();
     setInstalledApps(List<Map<String, String>>.from(installedApps));
 
-    // === Screensaver ===
+    // === Update Allowed Apps hanya jika berubah ===
+    final newAllowedApps = List<String>.from(data['allowedApps'] ?? []);
+    _updateAllowedAppsIfChanged(newAllowedApps);
+
+    // === Screensaver Configuration ===
+    await _updateScreensaverConfiguration(data);
+
+    // === Kiosk Mode Configuration ===
+    await _updateKioskConfiguration(data);
+
+    // === Simpan konfigurasi terakhir ===
+    _lastConfiguration = Map<String, dynamic>.from(data);
+
+    filterApps();
+  }
+
+  /// Mengupdate allowedApps hanya jika ada perubahan
+  void _updateAllowedAppsIfChanged(List<String> newAllowedApps) {
+    // Gunakan DeepCollectionEquality untuk perbandingan yang lebih akurat
+    const listEquality = ListEquality<String>();
+
+    if (!listEquality.equals(allowedApps.value, newAllowedApps)) {
+      debugPrint(
+        "Allowed apps changed from ${allowedApps.value} to $newAllowedApps",
+      );
+      allowedApps.value = newAllowedApps;
+    } else {
+      debugPrint("Allowed apps unchanged, skip update");
+    }
+  }
+
+  /// Cek apakah konfigurasi telah berubah
+  bool _isConfigurationUnchanged(Map<String, dynamic> newData) {
+    if (_lastConfiguration.isEmpty) return false;
+
+    // Bandingkan field-field penting
+    final criticalFields = [
+      'screensaverType',
+      'screensaverImage',
+      'screensaverText',
+      'screensaverVideo',
+      'allowedApps',
+      'isScreensaverEnabled',
+      'screensaverInterval',
+      'isKioskEnabled',
+      'kioskTarget',
+    ];
+
+    for (final field in criticalFields) {
+      final oldValue = _lastConfiguration[field];
+      final newValue = newData[field];
+
+      if (field == 'allowedApps') {
+        // Khusus untuk allowedApps, gunakan perbandingan list
+        const listEquality = ListEquality();
+        final oldList = List.from(oldValue ?? []);
+        final newList = List.from(newValue ?? []);
+
+        if (!listEquality.equals(oldList, newList)) {
+          return false;
+        }
+      } else {
+        // Untuk field lainnya, bandingkan secara langsung
+        if (oldValue != newValue) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  /// Update konfigurasi screensaver
+  Future<void> _updateScreensaverConfiguration(
+    Map<String, dynamic> data,
+  ) async {
     screensaverType.value = data['screensaverType'] ?? '';
     screensaverImage.value = data['screensaverImage'] ?? '';
     screensaverText.value = data['screensaverText'] ?? '';
     screensaverVideo.value = data['screensaverVideo'] ?? '';
-    allowedApps.value = List<String>.from(data['allowedApps'] ?? []);
 
     final isScreensaverEnabled = data['isScreensaverEnabled'] ?? false;
     final collectionId = data['collectionId'];
     final recordId = data['id'];
 
-    final imageUrl =
-        "${Constants.POCKETBASE_URL}/api/files/$collectionId/$recordId/${screensaverImage.value}";
-    final videoUrl =
-        "${Constants.POCKETBASE_URL}/api/files/$collectionId/$recordId/${screensaverVideo.value}";
-
-    File? localImage;
-    File? localVideo;
-
     debugPrint("Screensaver type: ${screensaverType.value}");
     debugPrint("Screensaver image: ${screensaverImage.value}");
     debugPrint("Screensaver video: ${screensaverVideo.value}");
 
-    final futures = <Future<File?>>[];
-    if (screensaverType.value == "IMAGE" && screensaverImage.value.isNotEmpty) {
-      futures.add(downloadFile(imageUrl, screensaverImage.value));
+    // Download files secara parallel jika diperlukan
+    final downloadTasks = <Future<File?>>[];
+
+    if (screensaverImage.value.isNotEmpty) {
+      final imageUrl =
+          "${Constants.POCKETBASE_URL}/api/files/$collectionId/$recordId/${screensaverImage.value}";
+      downloadTasks.add(downloadFile(imageUrl, screensaverImage.value));
     }
-    if (screensaverType.value == "VIDEO" && screensaverVideo.value.isNotEmpty) {
-      futures.add(downloadFile(videoUrl, screensaverVideo.value));
+
+    if (screensaverVideo.value.isNotEmpty) {
+      final videoUrl =
+          "${Constants.POCKETBASE_URL}/api/files/$collectionId/$recordId/${screensaverVideo.value}";
+      downloadTasks.add(downloadFile(videoUrl, screensaverVideo.value));
     }
-    final results = await Future.wait(futures);
-    if (results.isNotEmpty) localImage = results[0];
-    if (results.length > 1) localVideo = results[1];
+
+    final downloadResults = await Future.wait(downloadTasks);
+
+    File? localImage;
+    File? localVideo;
+
+    if (screensaverImage.value.isNotEmpty && downloadResults.isNotEmpty) {
+      localImage = downloadResults[0];
+    }
+    if (screensaverVideo.value.isNotEmpty) {
+      final videoIndex = screensaverImage.value.isNotEmpty ? 1 : 0;
+      if (downloadResults.length > videoIndex) {
+        localVideo = downloadResults[videoIndex];
+      }
+    }
 
     await saveScreensaverConfig(
       isEnabled: isScreensaverEnabled,
@@ -70,8 +167,10 @@ class ConfigurationController extends GetxController {
       videoPath: localVideo?.path,
       interval: data['screensaverInterval'] ?? 10,
     );
+  }
 
-    // === Kiosk Mode ===
+  /// Update konfigurasi kiosk mode
+  Future<void> _updateKioskConfiguration(Map<String, dynamic> data) async {
     final isKioskEnabled = data["isKioskEnabled"] ?? false;
     final kioskTarget = data["kioskTarget"] ?? '';
     final kioskService = KioskService();
@@ -84,12 +183,11 @@ class ConfigurationController extends GetxController {
       await kioskService.setKioskConfig(enabled: false, target: '');
       await kioskService.stopKioskDaemon();
     }
-
-    filterApps();
   }
 
   void setInstalledApps(List<Map<String, String>> installed) {
-    if (!_listEquals(allApps, installed)) {
+    if (!_isAppListEqual(allApps, installed)) {
+      debugPrint("Installed apps changed, updating list");
       allApps = installed;
       filterApps();
     } else {
@@ -98,22 +196,42 @@ class ConfigurationController extends GetxController {
   }
 
   void filterApps() {
-    if (allowedApps.isNotEmpty) {
-      apps.value = allApps
-          .where((app) => allowedApps.contains(app['package']))
-          .toList();
-    } else {
-      apps.value = allApps;
+    final filteredApps = allowedApps.isNotEmpty
+        ? allApps.where((app) => allowedApps.contains(app['package'])).toList()
+        : List<Map<String, String>>.from(allApps);
+
+    // Update hanya jika berbeda
+    if (!_isAppListEqual(apps.value, filteredApps)) {
+      apps.value = filteredApps;
+      debugPrint("Filtered apps updated: ${apps.length} apps");
     }
   }
 
-  bool _listEquals(List<Map<String, String>> a, List<Map<String, String>> b) {
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i]['package'] != b[i]['package']) return false;
+  /// Perbandingan list aplikasi yang lebih efisien
+  bool _isAppListEqual(
+    List<Map<String, String>> listA,
+    List<Map<String, String>> listB,
+  ) {
+    if (listA.length != listB.length) return false;
+
+    // Bandingkan dengan cara yang lebih efisien
+    for (int i = 0; i < listA.length; i++) {
+      if (listA[i]['package'] != listB[i]['package'] ||
+          listA[i]['name'] != listB[i]['name']) {
+        return false;
+      }
     }
     return true;
   }
+
+  /// Reset cache konfigurasi (untuk testing atau debugging)
+  void resetConfigurationCache() {
+    _lastConfiguration.clear();
+    debugPrint("Configuration cache reset");
+  }
+
+  /// Getter untuk mendapatkan status konfigurasi
+  bool get hasConfigurationCache => _lastConfiguration.isNotEmpty;
 }
 
 Future<File> saveScreensaverConfig({
@@ -128,8 +246,7 @@ Future<File> saveScreensaverConfig({
     "/storage/emulated/0/Android/data/id.bapenda.mdm/files/screensaver_config.json",
   );
 
-  // validasi minimal 10 detik → simpan dalam ms
-  final intervalMs = (interval < 10 ? 10 : interval) * 1000;
+  final intervalMs = interval < 10 ? 10 : interval;
 
   final data = {
     'isEnabled': isEnabled,
@@ -141,24 +258,51 @@ Future<File> saveScreensaverConfig({
   };
 
   debugPrint("Saving screensaver config: $data");
+
+  // Pastikan directory ada
+  await file.parent.create(recursive: true);
+
   return file.writeAsString(jsonEncode(data));
 }
 
 Future<File> downloadFile(String url, String filename) async {
   debugPrint("Downloading file from $url");
+
   final dir = await getApplicationDocumentsDirectory();
   final filePath = "${dir.path}/$filename";
   final file = File(filePath);
 
-  if (!await file.exists() || await file.length() == 0) {
-    try {
-      await Dio().download(url, filePath);
-      debugPrint("Downloaded $filename to $filePath");
-    } catch (e) {
-      debugPrint("Failed to download $filename: $e");
+  // Cek apakah file sudah ada dan valid
+  if (await file.exists() && await file.length() > 0) {
+    debugPrint("File already exists and valid: $filePath");
+    return file;
+  }
+
+  try {
+    // Pastikan directory ada
+    await file.parent.create(recursive: true);
+
+    // Download dengan timeout dan retry logic
+    final dio = Dio();
+    dio.options.connectTimeout = const Duration(seconds: 30);
+    dio.options.receiveTimeout = const Duration(seconds: 60);
+
+    await dio.download(url, filePath);
+    debugPrint("Downloaded $filename to $filePath");
+
+    // Verifikasi file berhasil didownload
+    if (!await file.exists() || await file.length() == 0) {
+      throw Exception("Downloaded file is empty or corrupted");
     }
-  } else {
-    debugPrint("File already exists: $filePath");
+  } catch (e) {
+    debugPrint("Failed to download $filename: $e");
+
+    // Hapus file yang corrupt jika ada
+    if (await file.exists()) {
+      await file.delete();
+    }
+
+    rethrow;
   }
 
   return file;

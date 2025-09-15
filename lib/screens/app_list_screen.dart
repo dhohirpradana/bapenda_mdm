@@ -29,54 +29,57 @@ class AppListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
-      body: SafeArea(
-        child: Obx(() {
-          final apps = configCtrl.apps;
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: const Color(0xFF1A1A1A),
+        body: SafeArea(
+          child: Obx(() {
+            final apps = configCtrl.apps;
 
-          return AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 0.8,
+            return AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: GridView.builder(
+                padding: const EdgeInsets.all(16),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: 0.8,
+                ),
+                itemCount: apps.length,
+                itemBuilder: (context, index) {
+                  final app = apps[index];
+                  return GestureDetector(
+                    onTap: () => RootService.openApp(app['package'] ?? ''),
+                    onLongPress: () async {
+                      await setKioskTarget(app['package'] ?? '');
+                    },
+                    child: AppTile(app: app),
+                  );
+                },
               ),
-              itemCount: apps.length,
-              itemBuilder: (context, index) {
-                final app = apps[index];
-                return GestureDetector(
-                  onTap: () => RootService.openApp(app['package'] ?? ''),
-                  onLongPress: () async {
-                    await setKioskTarget(app['package'] ?? '');
-                  },
-                  child: AppTile(app: app),
-                );
-              },
-            ),
-          );
-        }),
-      ),
-      bottomNavigationBar: BottomAppBar(
-        color: const Color(0xFF1A1A1A),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.replay, color: Colors.white),
-              onPressed: () {},
-              onLongPress: () {
-                // RootService.rebootDevice();
-                PocketBaseService.logout();
-                // Navigator.of(context).push(
-                //   MaterialPageRoute(builder: (_) => const ScreensaverPage()),
-                // );
-              },
-            ),
-          ],
+            );
+          }),
+        ),
+        bottomNavigationBar: BottomAppBar(
+          color: const Color(0xFF1A1A1A),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.replay, color: Colors.white),
+                onPressed: () {},
+                onLongPress: () {
+                  // RootService.rebootDevice();
+                  PocketBaseService.logout();
+                  // Navigator.of(context).push(
+                  //   MaterialPageRoute(builder: (_) => const ScreensaverPage()),
+                  // );
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
