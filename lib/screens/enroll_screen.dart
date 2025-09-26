@@ -7,6 +7,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:uuid/uuid.dart';
 import '../controllers/configuration_controller.dart';
 import '../services/pocketbase_service.dart';
+import '../services/root_service.dart';
 import 'app_list_screen.dart';
 
 class EnrollScreen extends StatefulWidget {
@@ -53,6 +54,11 @@ class _EnrollScreenState extends State<EnrollScreen> {
     } catch (e) {
       debugPrint("Error restoring auth: $e");
     }
+  }
+
+  void openSettings(BuildContext context) {
+    Navigator.of(context).pop();
+    RootService.openApp("com.android.settings");
   }
 
   Future<String?> getTailscaleIp() async {
@@ -500,6 +506,7 @@ class _EnrollScreenState extends State<EnrollScreen> {
       height: 56,
       child: ElevatedButton(
         onPressed: loading ? null : _enroll,
+        onLongPress: loading ? null : () => openSettings(context),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF2563EB),
           foregroundColor: Colors.white,
