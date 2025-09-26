@@ -42,6 +42,29 @@ class _MdmLauncherAppState extends State<MdmLauncherApp> {
     }
   }
 
+  Future<void> startKioskWatchdogService() async {
+    try {
+      final result = await MdmLauncherApp._channel.invokeMethod(
+        'startKioskWatchdogService',
+      );
+      debugPrint(result);
+    } catch (e) {
+      debugPrint('Error starting kiosk watchdog service: $e');
+    }
+  }
+
+  // WifiAdbWatchdogService
+  Future<void> startWifiAdbActivity() async {
+    try {
+      final result = await MdmLauncherApp._channel.invokeMethod(
+        'startWifiAdbWatchdogService',
+      );
+      debugPrint(result);
+    } catch (e) {
+      debugPrint('Error starting wifi adb activity: $e');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -50,28 +73,38 @@ class _MdmLauncherAppState extends State<MdmLauncherApp> {
   @override
   Widget build(BuildContext context) {
     startForegroundService();
-    return MaterialApp(
+    startKioskWatchdogService();
+    startWifiAdbActivity();
+    return GetMaterialApp(
       title: 'MDM Launcher',
       theme: ThemeData.dark(),
       debugShowCheckedModeBanner: false,
-      home: GetBuilder<AuthController>(
-        init: AuthController(),
-        builder: (authCtrl) {
-          if (authCtrl.loading.value) {
-            return const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(color: Colors.white),
-              ),
-            );
-          }
+      initialRoute: '/',
+      getPages: [
+        GetPage(
+          name: '/',
+          page: () => GetBuilder<AuthController>(
+            init: AuthController(),
+            builder: (authCtrl) {
+              if (authCtrl.loading.value) {
+                return const Scaffold(
+                  body: Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
+                );
+              }
 
-          if (!authCtrl.isLoggedIn.value) {
-            return const EnrollScreen();
-          }
+              if (!authCtrl.isLoggedIn.value) {
+                return const EnrollScreen();
+              }
 
-          return AppListScreen();
-        },
-      ),
+              return AppListScreen();
+            },
+          ),
+        ),
+        GetPage(name: '/enroll', page: () => const EnrollScreen()),
+        GetPage(name: '/apps', page: () => AppListScreen()),
+      ],
     );
   }
 }

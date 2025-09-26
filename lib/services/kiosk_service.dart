@@ -1,31 +1,34 @@
-import 'package:bapenda_mdm/services/root_service.dart';
-import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+
+final file = File("/data/user/0/id.bapenda.mdm/files/kiosk_config.json");
 
 class KioskService {
   Future<void> setKioskConfig({
     required bool enabled,
     required String target,
   }) async {
-    final json =
-        '{"enabled": ${enabled ? 'true' : 'false'}, "target": "$target"}';
-    final cmd =
-        "cat > /data/adb/kiosk_config.json <<'EOF'\n$json\nEOF\nchown root:shell /data/adb/kiosk_config.json\nchmod 660 /data/adb/kiosk_config.json";
-    await RootService.runCommand(cmd);
-    // cek sukses atau tidak
-    final verify = await RootService.runCommand(
-      "cat /data/adb/kiosk_config.json",
-    );
+    debugPrint("Setting kiosk config: enabled=$enabled, target=$target");
+    final jsonData = {"enabled": enabled, "target": target};
+
+    debugPrint("Writing kiosk config to ${file.path}");
+
+    await file.writeAsString(jsonEncode(jsonData));
+    debugPrint("Kiosk config written to ${file.path}");
+
+    final verify = await file.readAsString();
     debugPrint("Kiosk config: $verify");
-    if (verify.contains(target)) {
-      debugPrint("Kiosk config set successfully");
-    } else {
-      debugPrint("Failed to set kiosk config");
-    }
   }
 
   Future<void> stopKioskDaemon() async {
-    await RootService.runCommand(
-      "sh /data/adb/modules/kiosk_module/daemon.sh stop || sh /data/adb/modules_update/kiosk_module/daemon.sh stop",
-    );
+    // kalau non-root mungkin stop daemon via bound service
+    // enable false di config
+    final jsonData = {"enabled": false, "target": ""};
+    await file.writeAsString(jsonEncode(jsonData));
+    debugPrint("Kiosk config written to ${file.path}");
+    final verify = await file.readAsString();
+    debugPrint("Kiosk config: $verify");
+    // debugPrint("Stop kiosk not implemented for non-root yet");
   }
 }

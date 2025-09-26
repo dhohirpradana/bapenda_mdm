@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
@@ -22,11 +23,13 @@ class _EnrollScreenState extends State<EnrollScreen> {
   String? errorMessage;
   String? tailscaleIp;
   AndroidDeviceInfo? androidInfo;
+  Timer? _authTimer;
 
   @override
   void dispose() {
     codeController.dispose();
     displayNameController.dispose();
+    _authTimer?.cancel();
     super.dispose();
   }
 
@@ -35,6 +38,21 @@ class _EnrollScreenState extends State<EnrollScreen> {
     super.initState();
     _getDeviceInfo();
     getTailscaleIp();
+    restoreAuth();
+
+    _authTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      getTailscaleIp();
+      restoreAuth();
+    });
+  }
+
+  // restore auth
+  Future<void> restoreAuth() async {
+    try {
+      await PocketBaseService.restoreAuth();
+    } catch (e) {
+      debugPrint("Error restoring auth: $e");
+    }
   }
 
   Future<String?> getTailscaleIp() async {
@@ -299,7 +317,15 @@ class _EnrollScreenState extends State<EnrollScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            _buildDeviceInfoRow("IP Address", tailscaleIp ?? "Unknown"),
+            GestureDetector(
+              onTap: () {
+                getTailscaleIp();
+              },
+              child: _buildDeviceInfoRow(
+                "IP Address",
+                tailscaleIp ?? "Unknown",
+              ),
+            ),
             _buildDeviceInfoRow("Device", androidInfo!.model),
             _buildDeviceInfoRow("Manufacturer", androidInfo!.manufacturer),
             _buildDeviceInfoRow("Model Code", androidInfo!.device),

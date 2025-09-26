@@ -160,7 +160,24 @@ class MainActivity : FlutterActivity() {
                         }
                         result.success("Foreground service started")
                     }
-
+                    "startKioskWatchdogService" -> {
+                        val intent = Intent(this, KioskWatchdogService::class.java)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            ContextCompat.startForegroundService(this, intent)
+                        } else {
+                            startService(intent)
+                        }
+                        result.success("Kiosk watchdog service started")
+                    }
+                    "startWifiAdbWatchdogService" -> {
+                        val intent = Intent(this, WifiAdbWatchdogService::class.java)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            ContextCompat.startForegroundService(this, intent)
+                        } else {
+                            startService(intent)
+                        }
+                        result.success("WiFi ADB watchdog service started")
+                    }
                     else -> result.notImplemented()
                 }
             }

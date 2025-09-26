@@ -37,7 +37,7 @@ class ForegroundService : Service() {
     private var screensaverText: String? = null
     private var screensaverImageFile: File? = null
     private var screensaverVideoFile: File? = null
-    private var interval: Long = 10_000
+    private var interval: Long = 600_000
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -61,7 +61,7 @@ class ForegroundService : Service() {
         }
 
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Bapenda MDM")
+            .setContentTitle("One Manage")
             .setContentText("Screensaver service aktif")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .build()
@@ -164,7 +164,7 @@ class ForegroundService : Service() {
             isScreensaverEnabled = json.optBoolean("isEnabled", false)
             screensaverType = json.optString("type")
             screensaverText = json.optString("text")
-            interval = json.optLong("interval", 10_000).coerceAtLeast(10_000)
+            interval = json.optLong("interval", 60_000).coerceAtLeast(60_000)
             screensaverImageFile = json.optString("imagePath")
                 .takeIf { path: String -> path.isNotEmpty() }
                 ?.let { path: String -> File(path) }
@@ -308,47 +308,76 @@ class ForegroundService : Service() {
     */
     private fun addVideoContent(layout: FrameLayout): Boolean {
         val videoFile = screensaverVideoFile?.takeIf { it.exists() && it.length() > 0 }
-        
         if (videoFile == null) {
             Log.d(TAG, "Video file not found or empty")
             return false
         }
-        
+
         return try {
-            Log.d(TAG, "Playing video: ${videoFile.path}")
-            
-            val videoView = VideoView(this).apply {
-                setVideoPath(videoFile.path)
-                
-                setOnPreparedListener { mediaPlayer ->
+            Log.d(TAG, "Playing video with TextureView: ${videoFile.path}")
+
+            val textureView = TextureView(this).apply {
+                keepScreenOn = true
+            }
+
+            var mediaPlayer: MediaPlayer? = null
+
+            textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
                     try {
-                        mediaPlayer.isLooping = true
-                        
-                        // Optimized video scaling
-                        setupVideoScaling(this, mediaPlayer, layout)
-                        
+                        val surfaceObj = Surface(surface)
+                        mediaPlayer = MediaPlayer().apply {
+                            setDataSource(videoFile.path)
+                            setSurface(surfaceObj)
+                            isLooping = true
+                            setOnPreparedListener {
+                                // Scaling biar video pas di layar
+                                val videoWidth = it.videoWidth
+                                val videoHeight = it.videoHeight
+                                val scaleX = width.toFloat() / videoWidth
+                                val scaleY = height.toFloat() / videoHeight
+                                val scale = minOf(scaleX, scaleY)
+                                val scaledWidth = (videoWidth * scale).toInt()
+                                val scaledHeight = (videoHeight * scale).toInt()
+
+                                textureView.layoutParams = FrameLayout.LayoutParams(
+                                    scaledWidth,
+                                    scaledHeight,
+                                    Gravity.CENTER
+                                )
+                                start()
+                            }
+                            setOnErrorListener { _, what, extra ->
+                                Log.e(TAG, "MediaPlayer error: what=$what extra=$extra")
+                                false
+                            }
+                            prepareAsync()
+                        }
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error in video prepared listener: ${e.message}", e)
+                        Log.e(TAG, "Error initializing MediaPlayer: ${e.message}", e)
                     }
                 }
-                
-                setOnErrorListener { _, what, extra ->
-                    Log.e(TAG, "Video playback error: what=$what, extra=$extra")
-                    false // Return false to trigger onCompletion
-                }
-                
-                setOnCompletionListener {
-                    Log.d(TAG, "Video playback completed")
-                    // Video akan loop otomatis karena isLooping = true
+
+                override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
+                override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
+                override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
+                    mediaPlayer?.release()
+                    mediaPlayer = null
+                    return true
                 }
             }
-            
-            layout.addView(videoView)
-            currentVideoView = videoView
+
+            layout.addView(
+                textureView,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            )
+
             true
-            
         } catch (e: Exception) {
-            Log.e(TAG, "Error setting up video: ${e.message}", e)
+            Log.e(TAG, "Error setting up TextureView video: ${e.message}", e)
             false
         }
     }

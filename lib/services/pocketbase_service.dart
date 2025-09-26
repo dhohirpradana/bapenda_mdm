@@ -2,9 +2,11 @@ import 'package:bapenda_mdm/constants/constant.dart';
 import 'package:bapenda_mdm/controllers/auth_controller.dart';
 import 'package:bapenda_mdm/models/result_model.dart';
 import 'package:bapenda_mdm/services/device_service.dart';
+import 'package:bapenda_mdm/services/kiosk_service.dart';
 import 'package:bapenda_mdm/services/root_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:pocketbase/pocketbase.dart';
@@ -15,7 +17,7 @@ class PocketBaseService {
   static final Dio dio = Dio(
     BaseOptions(
       baseUrl: backendUrl,
-      connectTimeout: Duration(seconds: 10),
+      connectTimeout: Duration(seconds: 15),
       receiveTimeout: Duration(seconds: 30),
     ),
   );
@@ -55,14 +57,7 @@ class PocketBaseService {
         "type": type,
       };
 
-      final res = await dio.post(
-        '/enroll',
-        data: jsonData,
-        options: Options(
-          // biar 4xx tidak throw langsung
-          validateStatus: (status) => status != null && status < 500,
-        ),
-      );
+      final res = await dio.post('/enroll', data: jsonData);
 
       final data = res.data;
       final email = data['email'];
@@ -183,6 +178,10 @@ class PocketBaseService {
     await pb.collection('devices').subscribe(deviceRecordId, (e) async {
       debugPrint("Device subscription event: $e");
       if (e.record != null) {
+        authController.setDeviceInfo(
+          e.record!.data['displayName'] ?? '',
+          e.record!.id,
+        );
         final newConfigId = e.record!.data['configuration'];
         if (newConfigId != null && newConfigId != _configurationId) {
           _configurationId = newConfigId;
@@ -212,10 +211,12 @@ class PocketBaseService {
 
     try {
       debugPrint("Logging in with email: $email");
+
       // login ke PocketBase
       final device = await pb
           .collection('devices')
           .authWithPassword(email, password);
+
       debugPrint("Logged in as: ${device.record.data['displayName']}");
       _configurationId = device.record.data['configuration'];
 
@@ -225,18 +226,17 @@ class PocketBaseService {
           .getOne(_configurationId!);
       configController.updateFromPocketBase(config.toJson());
 
-      // update lastSeenAt and batteryLevel and storage info to pocketbase
+      // get latest device record
       final deviceInfo = await pb.collection('devices').getOne(deviceRecordId);
 
       final DeviceService deviceService = DeviceService();
       final deviceDetails = await deviceService.getDeviceInfo();
 
-      // jika IP address null, jangan update dan update isVPNConnect ke false
+      // cek ip address
       if (deviceDetails['ipAddress'] == null) {
         deviceDetails['ipAddress'] = deviceInfo.data['ipAddress'];
         deviceDetails['isVPNConnected'] = false;
       } else {
-        // jika ada IP, berarti VPN connect
         deviceDetails['isVPNConnected'] = true;
       }
 
@@ -252,20 +252,38 @@ class PocketBaseService {
 
       await pb.collection('devices').update(deviceRecordId, body: updateData);
 
-      // debugPrint("Configuration ID: $_configurationId");
-      // debugPrint("Device ID: $deviceRecordId");
-
-      // subscribe to device and configuration
+      // subscribe
       await subscribeToDevice(deviceRecordId);
       await subscribeToConfiguration(_configurationId!);
 
-      // simpan configurationId
+      // simpan config id
       storage.write('configurationId', _configurationId);
 
       authController.setLoggedIn(true);
     } catch (e) {
       debugPrint("Login error: $e");
-      // authController.setLoggedIn(false);
+
+      final errorStr = e.toString();
+
+      // kalau error jaringan → jangan logout
+      if (errorStr.contains("SocketException") ||
+          errorStr.contains("Network") ||
+          errorStr.contains("Timeout")) {
+        debugPrint("Network error, skip logout");
+        // tetap logged in
+      } else {
+        // selain network error (misalnya unauthorized / invalid credential)
+        debugPrint("Non-network error, logging out");
+        authController.setLoggedIn(false);
+        // logout();
+        // disable kiosk mode
+        RootService.disableKiosk();
+        KioskService().stopKioskDaemon();
+        // disable screensaver
+        disableScreensaver();
+        Get.offAllNamed('/enroll');
+      }
+
       return;
     }
   }

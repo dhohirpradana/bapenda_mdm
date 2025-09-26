@@ -38,6 +38,7 @@ class ConfigurationController extends GetxController {
 
     // === Update Apps hanya jika berubah ===
     final installedApps = await RootService.getInstalledApps();
+    debugPrint("Installed apps from RootService: $installedApps");
     setInstalledApps(List<Map<String, String>>.from(installedApps));
 
     // === Update Allowed Apps hanya jika berubah ===
@@ -128,6 +129,7 @@ class ConfigurationController extends GetxController {
     debugPrint("Screensaver type: ${screensaverType.value}");
     debugPrint("Screensaver image: ${screensaverImage.value}");
     debugPrint("Screensaver video: ${screensaverVideo.value}");
+    debugPrint("Screensaver Interval: ${data['screensaverInterval']}");
 
     // Download files secara parallel jika diperlukan
     final downloadTasks = <Future<File?>>[];
@@ -246,7 +248,7 @@ Future<File> saveScreensaverConfig({
     "/storage/emulated/0/Android/data/id.bapenda.mdm/files/screensaver_config.json",
   );
 
-  final intervalMs = interval < 10 ? 10 : interval;
+  final intervalMs = interval < 60 ? 60 : interval;
 
   final data = {
     'isEnabled': isEnabled,
@@ -263,6 +265,11 @@ Future<File> saveScreensaverConfig({
   await file.parent.create(recursive: true);
 
   return file.writeAsString(jsonEncode(data));
+}
+
+// disable screensaver
+Future<File> disableScreensaver() async {
+  return saveScreensaverConfig(isEnabled: false, type: '', interval: 0);
 }
 
 Future<File> downloadFile(String url, String filename) async {

@@ -6,6 +6,8 @@ class AuthController extends GetxController {
   var loading = false.obs;
   var errorMessage = RxnString();
   final codeController = TextEditingController();
+  var deviceDisplayName = ''.obs;
+  var deviceId = ''.obs;
 
   // set logged in status
   void setLoggedIn(bool value) {
@@ -20,5 +22,11 @@ class AuthController extends GetxController {
   // set error message
   void setErrorMessage(String? message) {
     errorMessage.value = message;
+  }
+
+  // set device info
+  void setDeviceInfo(String displayName, String id) {
+    deviceDisplayName.value = displayName;
+    deviceId.value = id;
   }
 }
