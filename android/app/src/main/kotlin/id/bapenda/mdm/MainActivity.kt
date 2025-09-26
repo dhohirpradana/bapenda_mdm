@@ -178,6 +178,15 @@ class MainActivity : FlutterActivity() {
                         }
                         result.success("WiFi ADB watchdog service started")
                     }
+                    "startTouchDetectService" -> {
+                        val intent = Intent(this, TouchDetectService::class.java)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            ContextCompat.startForegroundService(this, intent)
+                        } else {
+                            startService(intent)
+                        }
+                        result.success("Touch detect service started")
+                    }
                     else -> result.notImplemented()
                 }
             }

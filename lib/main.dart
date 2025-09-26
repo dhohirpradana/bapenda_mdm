@@ -16,10 +16,19 @@ void main() async {
   // Restore auth & init controller
   await PocketBaseService.restoreAuth();
   Get.put(ConfigurationController());
+  Get.put(AuthController());
 
   await initForegroundChannel();
 
   runApp(const MdmLauncherApp());
+}
+
+class AppBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.lazyPut<AuthController>(() => AuthController());
+    Get.lazyPut<ConfigurationController>(() => ConfigurationController());
+  }
 }
 
 class MdmLauncherApp extends StatefulWidget {
@@ -53,7 +62,6 @@ class _MdmLauncherAppState extends State<MdmLauncherApp> {
     }
   }
 
-  // WifiAdbWatchdogService
   Future<void> startWifiAdbActivity() async {
     try {
       final result = await MdmLauncherApp._channel.invokeMethod(
@@ -65,27 +73,40 @@ class _MdmLauncherAppState extends State<MdmLauncherApp> {
     }
   }
 
+  Future<void> startTouchDetectService() async {
+    try {
+      final result = await MdmLauncherApp._channel.invokeMethod(
+        'startTouchDetectService',
+      );
+      debugPrint(result);
+    } catch (e) {
+      debugPrint('Error starting touch detect service: $e');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    startForegroundService();
+    startKioskWatchdogService();
+    startWifiAdbActivity();
+    startTouchDetectService();
   }
 
   @override
   Widget build(BuildContext context) {
-    startForegroundService();
-    startKioskWatchdogService();
-    startWifiAdbActivity();
     return GetMaterialApp(
       title: 'MDM Launcher',
       theme: ThemeData.dark(),
       debugShowCheckedModeBanner: false,
       initialRoute: '/',
+      initialBinding: AppBinding(),
       getPages: [
         GetPage(
           name: '/',
-          page: () => GetBuilder<AuthController>(
-            init: AuthController(),
-            builder: (authCtrl) {
+          page: () {
+            final authCtrl = Get.find<AuthController>();
+            return Obx(() {
               if (authCtrl.loading.value) {
                 return const Scaffold(
                   body: Center(
@@ -99,8 +120,8 @@ class _MdmLauncherAppState extends State<MdmLauncherApp> {
               }
 
               return AppListScreen();
-            },
-          ),
+            });
+          },
         ),
         GetPage(name: '/enroll', page: () => const EnrollScreen()),
         GetPage(name: '/apps', page: () => AppListScreen()),

@@ -39,9 +39,9 @@ class RootService {
   }
 
   // Disable kiosk mode
-  static Future<void> disableKiosk() async {
-    await _channel.invokeMethod('disableKiosk');
-  }
+  // static Future<void> disableKiosk() async {
+  //   await _channel.invokeMethod('disableKiosk');
+  // }
 
   // Reboot device
   static Future<void> rebootDevice() async {

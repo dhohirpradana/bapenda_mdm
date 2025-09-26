@@ -17,6 +17,7 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <uses-permission android:name="android.permission.ACTION_MANAGE_OVERLAY_PERMISSION"/>
 
     <!-- Queries harus di luar <application> -->
@@ -37,9 +38,10 @@
         <!-- Activity untuk debug -->
         <activity
             android:name=".MainActivity"
+            android:launchMode="singleTask"
             android:excludeFromRecents="true"
-            android:exported="true"
-            android:launchMode="singleTop">
+            android:taskAffinity=""
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -89,11 +91,21 @@
 
         <service
             android:name=".KioskWatchdogService"
+            android:enabled="true"
+            android:foregroundServiceType="dataSync"
             android:exported="false" />
 
         <service
             android:name=".WifiAdbWatchdogService"
+            android:enabled="true"
+            android:foregroundServiceType="dataSync"
             android:exported="false" />
+
+        <service
+            android:name=".TouchDetectService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync">
+        </service>
 
         <meta-data
             android:name="flutterEmbedding"
