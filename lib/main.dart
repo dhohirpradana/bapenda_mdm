@@ -2,6 +2,7 @@ import 'package:bapenda_mdm/controllers/auth_controller.dart';
 import 'package:bapenda_mdm/controllers/configuration_controller.dart';
 import 'package:bapenda_mdm/screens/app_list_screen.dart';
 import 'package:bapenda_mdm/screens/enroll_screen.dart';
+import 'package:bapenda_mdm/screens/root_required_app_screen.dart';
 import 'package:bapenda_mdm/services/background_service.dart';
 import 'package:bapenda_mdm/services/pocketbase_service.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +13,21 @@ import 'package:get_storage/get_storage.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await GetStorage.init();
+
+  // ✅ Cek root dengan menjalankan "id"
+  const MethodChannel rootChannel = MethodChannel('root/control');
+  String rootCheck = "";
+  try {
+    final result = await rootChannel.invokeMethod("runCommand", {"cmd": "id"});
+    rootCheck = result ?? "";
+  } catch (e) {
+    rootCheck = "";
+  }
+
+  if (rootCheck.isEmpty || !rootCheck.contains("uid=0")) {
+    runApp(const RootRequiredApp());
+    return;
+  }
 
   // Restore auth & init controller
   await PocketBaseService.restoreAuth();
@@ -39,7 +55,8 @@ class MdmLauncherApp extends StatefulWidget {
   State<MdmLauncherApp> createState() => _MdmLauncherAppState();
 }
 
-class _MdmLauncherAppState extends State<MdmLauncherApp> {
+class _MdmLauncherAppState extends State<MdmLauncherApp>
+    with WidgetsBindingObserver {
   Future<void> startForegroundService() async {
     try {
       final result = await MdmLauncherApp._channel.invokeMethod(
@@ -87,10 +104,24 @@ class _MdmLauncherAppState extends State<MdmLauncherApp> {
   @override
   void initState() {
     super.initState();
-    startForegroundService();
-    startKioskWatchdogService();
-    startWifiAdbActivity();
-    startTouchDetectService();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // ✅ Hanya start service kalau app sudah aktif di foreground
+      startForegroundService();
+      startKioskWatchdogService();
+      startWifiAdbActivity();
+      startTouchDetectService();
+    }
   }
 
   @override
