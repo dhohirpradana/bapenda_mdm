@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:bapenda_mdm/constants/constant.dart';
 import 'package:bapenda_mdm/services/kiosk_service.dart';
 import 'package:bapenda_mdm/services/root_service.dart';
+// ignore: depend_on_referenced_packages
 import 'package:collection/collection.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -136,13 +137,13 @@ class ConfigurationController extends GetxController {
 
     if (screensaverImage.value.isNotEmpty) {
       final imageUrl =
-          "${Constants.POCKETBASE_URL}/api/files/$collectionId/$recordId/${screensaverImage.value}";
+          "${Constants.pocketbaseUrl}/api/files/$collectionId/$recordId/${screensaverImage.value}";
       downloadTasks.add(downloadFile(imageUrl, screensaverImage.value));
     }
 
     if (screensaverVideo.value.isNotEmpty) {
       final videoUrl =
-          "${Constants.POCKETBASE_URL}/api/files/$collectionId/$recordId/${screensaverVideo.value}";
+          "${Constants.pocketbaseUrl}/api/files/$collectionId/$recordId/${screensaverVideo.value}";
       downloadTasks.add(downloadFile(videoUrl, screensaverVideo.value));
     }
 

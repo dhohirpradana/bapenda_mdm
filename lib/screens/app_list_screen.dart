@@ -139,7 +139,7 @@ class _AppListScreenState extends State<AppListScreen>
   }
 
   void _showUnlockDialog() {
-    const pinLength = 8;
+    const pinLength = 6;
     final List<TextEditingController> controllers = List.generate(
       pinLength,
       (_) => TextEditingController(),
@@ -158,7 +158,7 @@ class _AppListScreenState extends State<AppListScreen>
 
     void checkPin(BuildContext context) {
       final enteredPin = controllers.map((c) => c.text).join();
-      if (enteredPin == "12344321") {
+      if (enteredPin == "123312") {
         Navigator.of(context).pop();
         HapticFeedback.lightImpact();
         RootService.openApp("com.android.settings");
@@ -199,12 +199,12 @@ class _AppListScreenState extends State<AppListScreen>
               colors: [Color(0xFF1F2937), Color(0xFF111827), Color(0xFF0F0F0F)],
             ),
             border: Border.all(
-              color: const Color(0xFF3B82F6).withOpacity(0.3),
+              color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
               width: 2,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.5),
+                color: Colors.black.withValues(alpha: 0.5),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
@@ -217,7 +217,7 @@ class _AppListScreenState extends State<AppListScreen>
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6).withOpacity(0.1),
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Row(
@@ -256,7 +256,7 @@ class _AppListScreenState extends State<AppListScreen>
                                 : const Color(0xFF3B82F6),
                             width: 2,
                           ),
-                          color: const Color(0xFF374151).withOpacity(0.3),
+                          color: const Color(0xFF374151).withValues(alpha: 0.3),
                         ),
                         child: TextField(
                           controller: controllers[index],
@@ -318,7 +318,9 @@ class _AppListScreenState extends State<AppListScreen>
                       ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.2),
+                        ),
                       ),
                     ),
                     child: const Text(
@@ -339,7 +341,9 @@ class _AppListScreenState extends State<AppListScreen>
                         horizontal: 24,
                         vertical: 12,
                       ),
-                      backgroundColor: const Color(0xFF3B82F6).withOpacity(0.1),
+                      backgroundColor: const Color(
+                        0xFF3B82F6,
+                      ).withValues(alpha: 0.1),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -396,7 +400,7 @@ class _AppListScreenState extends State<AppListScreen>
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -410,7 +414,7 @@ class _AppListScreenState extends State<AppListScreen>
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF3B82F6).withOpacity(0.2),
+                        color: const Color(0xFF3B82F6).withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
@@ -509,16 +513,16 @@ class _AppListScreenState extends State<AppListScreen>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF374151).withOpacity(0.3),
+        color: const Color(0xFF374151).withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.3), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.2),
+              color: color.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: color, size: 20),
@@ -533,7 +537,7 @@ class _AppListScreenState extends State<AppListScreen>
                 Text(
                   label,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -578,7 +582,7 @@ class _AppListScreenState extends State<AppListScreen>
               },
               icon: Icon(Icons.copy, color: color, size: 18),
               style: IconButton.styleFrom(
-                backgroundColor: color.withOpacity(0.1),
+                backgroundColor: color.withValues(alpha: 0.1),
                 padding: const EdgeInsets.all(8),
               ),
             ),
@@ -716,7 +720,7 @@ class _AppListScreenState extends State<AppListScreen>
                         // Loading overlay
                         if (isLoading)
                           Container(
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withValues(alpha: 0.3),
                             child: const Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -763,8 +767,11 @@ class _AppListScreenState extends State<AppListScreen>
       height: 40,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Colors.black.withOpacity(0.15),
-        border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+        color: Colors.black.withValues(alpha: 0.15),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.1),
+          width: 1,
+        ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -778,11 +785,15 @@ class _AppListScreenState extends State<AppListScreen>
                     width: 14,
                     height: 14,
                     child: CircularProgressIndicator(
-                      color: Colors.white.withOpacity(0.7),
+                      color: Colors.white.withValues(alpha: 0.7),
                       strokeWidth: 1.5,
                     ),
                   )
-                : Icon(icon, color: Colors.white.withOpacity(0.6), size: 16),
+                : Icon(
+                    icon,
+                    color: Colors.white.withValues(alpha: 0.6),
+                    size: 16,
+                  ),
           ),
         ),
       ),

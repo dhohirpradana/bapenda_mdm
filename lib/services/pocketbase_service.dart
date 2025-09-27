@@ -11,7 +11,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 class PocketBaseService {
-  static final String backendUrl = Constants.BACKEND_URL;
+  static final String backendUrl = Constants.backendUrl;
   static final Dio dio = Dio(
     BaseOptions(
       baseUrl: backendUrl,
@@ -19,7 +19,7 @@ class PocketBaseService {
       receiveTimeout: const Duration(seconds: 30),
     ),
   );
-  static final pb = PocketBase(Constants.POCKETBASE_URL);
+  static final pb = PocketBase(Constants.pocketbaseUrl);
   static final storage = GetStorage();
   static String? _configurationId;
   static String? _deviceRecordId;
@@ -282,6 +282,7 @@ class PocketBaseService {
     Map<String, dynamic> data,
   ) {
     storage.write('token', pb.authStore.token);
+    // ignore: deprecated_member_use
     storage.write('user', pb.authStore.model.toJson());
     storage.write('deviceRecordId', data['deviceRecordId']);
     storage.write('configurationId', data['configurationId']);

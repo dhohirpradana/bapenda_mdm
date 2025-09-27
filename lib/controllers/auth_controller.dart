@@ -49,7 +49,7 @@ class AuthController extends GetxController {
             style: const TextStyle(color: Colors.white),
           ),
           snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red.withOpacity(0.8),
+          backgroundColor: Colors.red.withValues(alpha: 0.8),
           duration: const Duration(days: 1), // biar tetap muncul
           isDismissible: false,
         ),

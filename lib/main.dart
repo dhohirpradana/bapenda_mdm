@@ -147,7 +147,7 @@ class _MdmLauncherAppState extends State<MdmLauncherApp>
               }
 
               if (!authCtrl.isLoggedIn.value) {
-                return const AppListScreen();
+                return const EnrollScreen();
               }
 
               return AppListScreen();

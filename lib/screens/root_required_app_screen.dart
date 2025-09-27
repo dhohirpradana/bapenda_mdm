@@ -106,7 +106,7 @@ class _RootRequiredScreenState extends State<RootRequiredScreen>
                                   shape: BoxShape.circle,
                                   color: const Color(
                                     0xFFFF6B6B,
-                                  ).withOpacity(0.1),
+                                  ).withValues(alpha: 0.1),
                                   border: Border.all(
                                     color: const Color(0xFFFF6B6B),
                                     width: 2,
@@ -115,7 +115,7 @@ class _RootRequiredScreenState extends State<RootRequiredScreen>
                                     BoxShadow(
                                       color: const Color(
                                         0xFFFF6B6B,
-                                      ).withOpacity(0.3),
+                                      ).withValues(alpha: 0.3),
                                       blurRadius: 20,
                                       spreadRadius: 5,
                                     ),
@@ -148,7 +148,7 @@ class _RootRequiredScreenState extends State<RootRequiredScreen>
                               Text(
                                 'This application requires elevated system permissions to function properly.',
                                 style: TextStyle(
-                                  color: Colors.white.withOpacity(0.7),
+                                  color: Colors.white.withValues(alpha: 0.7),
                                   fontSize: 16,
                                   height: 1.5,
                                 ),
@@ -171,7 +171,7 @@ class _RootRequiredScreenState extends State<RootRequiredScreen>
                                     BoxShadow(
                                       color: const Color(
                                         0xFFFF6B6B,
-                                      ).withOpacity(0.3),
+                                      ).withValues(alpha: 0.3),
                                       blurRadius: 12,
                                       offset: const Offset(0, 8),
                                     ),
@@ -220,7 +220,7 @@ class _RootRequiredScreenState extends State<RootRequiredScreen>
                               Text(
                                 'Tap anywhere to close',
                                 style: TextStyle(
-                                  color: Colors.white.withOpacity(0.5),
+                                  color: Colors.white.withValues(alpha: 0.5),
                                   fontSize: 14,
                                 ),
                               ),
