@@ -302,7 +302,7 @@ class EnrollController extends GetxController with GetTickerProviderStateMixin {
         displayName: displayName,
         platform: "Android",
         osVersion: androidInfo.value!.version.release,
-        appVersion: "1.0.0",
+        appVersion: "2.0.0",
         tailscaleIp: tailscaleIp.value!,
         deviceModel: androidInfo.value!.model,
         manufacturer: androidInfo.value!.manufacturer,
