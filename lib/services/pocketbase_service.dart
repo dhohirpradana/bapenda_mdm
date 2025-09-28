@@ -1,6 +1,7 @@
 import 'package:bapenda_mdm/constants/constant.dart';
 import 'package:bapenda_mdm/controllers/auth_controller.dart';
 import 'package:bapenda_mdm/controllers/configuration_controller.dart';
+import 'package:bapenda_mdm/controllers/content_controller.dart';
 import 'package:bapenda_mdm/models/result_model.dart';
 import 'package:bapenda_mdm/services/device_service.dart';
 import 'package:bapenda_mdm/services/kiosk_service.dart';
@@ -84,16 +85,31 @@ class PocketBaseService {
 
       return Result.ok("Berhasil enroll perangkat");
     } on DioException catch (e) {
+      debugPrint("Enroll DioException: $e");
       authController.setLoading(false);
+      if (e.response?.statusCode == 404) {
+        return Result.fail("Code tidak valid atau sudah digunakan");
+      }
       return _handleDioError(e);
     } catch (e) {
       authController.setLoading(false);
       debugPrint("Enroll error umum: $e");
-      if (e is DioException && e.response?.statusCode == 404) {
-        return Result.fail("Code tidak valid atau sudah digunakan");
-      }
       return Result.fail("Unexpected error: $e");
     }
+  }
+
+  /// ---------------- SUBSCRIBE ----------------
+  /// Contents
+  static Future<void> subscribeToContent(String contentId) async {
+    await pb.collection('contents').subscribe(contentId, (e) {
+      debugPrint("Content subscription event: $e");
+      if (e.record != null) {
+        // Handle content update if needed
+        debugPrint("Content record updated: ${e.record!.toJson()}");
+        final contentController = Get.find<ContentController>();
+        contentController.updateImageVideo(e.record!);
+      }
+    });
   }
 
   /// ---------------- SUBSCRIBE ----------------
@@ -104,7 +120,14 @@ class PocketBaseService {
         recordData['allowedApps'] = await _resolveAllowedApps(
           recordData['allowedApps'],
         );
-        debugPrint("Configuration subscription event: $recordData");
+        // relation screensaverImage and screensaverVideo from tabel contents
+        recordData['screensaverImage'] = await _resolveScreensaverImageVideo(
+          recordData['screensaverImage'],
+        );
+        recordData['screensaverVideo'] = await _resolveScreensaverImageVideo(
+          recordData['screensaverVideo'],
+        );
+        // debugPrint("Configuration subscription event: $recordData");
         configController.updateFromPocketBase(recordData);
       }
     });
@@ -114,6 +137,13 @@ class PocketBaseService {
         .getOne(configurationId);
     config.data['allowedApps'] = await _resolveAllowedApps(
       config.data['allowedApps'],
+    );
+    // relation screensaverImage and screensaverVideo from tabel contents
+    config.data['screensaverImage'] = await _resolveScreensaverImageVideo(
+      config.data['screensaverImage'],
+    );
+    config.data['screensaverVideo'] = await _resolveScreensaverImageVideo(
+      config.data['screensaverVideo'],
     );
     configController.updateFromPocketBase(config.toJson());
   }
@@ -273,7 +303,27 @@ class PocketBaseService {
     config.data['allowedApps'] = await _resolveAllowedApps(
       config.data['allowedApps'],
     );
+    // relation screensaverImage and screensaverVideo from tabel contents
+    config.data['screensaverImage'] = await _resolveScreensaverImageVideo(
+      config.data['screensaverImage'],
+    );
+    config.data['screensaverVideo'] = await _resolveScreensaverImageVideo(
+      config.data['screensaverVideo'],
+    );
     configController.updateFromPocketBase(config.toJson());
+  }
+
+  static Future<dynamic> _resolveScreensaverImageVideo(
+    String? contentId,
+  ) async {
+    if (contentId == null || contentId.isEmpty) return null;
+    try {
+      final content = await pb.collection('contents').getOne(contentId);
+      return content;
+    } catch (e) {
+      debugPrint("Error resolving screensaver image: $e");
+      return null;
+    }
   }
 
   static void _saveAuthToStorage(

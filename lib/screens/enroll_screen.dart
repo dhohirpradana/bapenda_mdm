@@ -451,25 +451,6 @@ class EnrollScreen extends StatelessWidget {
             letterSpacing: -1,
           ),
         ),
-        // const SizedBox(height: 12),
-        // Container(
-        //   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        //   decoration: BoxDecoration(
-        //     color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
-        //     borderRadius: BorderRadius.circular(20),
-        //     border: Border.all(
-        //       color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
-        //     ),
-        //   ),
-        //   child: Text(
-        //     "Register your device securely",
-        //     style: TextStyle(
-        //       color: Colors.white.withValues(alpha: 0.8),
-        //       fontSize: 16,
-        //       fontWeight: FontWeight.w500,
-        //     ),
-        //   ),
-        // ),
       ],
     );
   }

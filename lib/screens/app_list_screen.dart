@@ -688,7 +688,7 @@ class _AppListScreenState extends State<AppListScreen>
                             children: [
                               _buildFloatingButton(
                                 icon: isLoading ? null : Icons.refresh,
-                                onTap: loadApps,
+                                onTap: restoreAuth,
                                 onLongPress: restoreAuth,
                                 color: const Color(0xFF10B981),
                                 isLoading: isLoading,

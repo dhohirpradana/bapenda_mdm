@@ -9,10 +9,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await GetStorage.init();
+
+  // ✅ Minta permission storage dulu
+  await requestStoragePermission();
 
   // ✅ Cek root dengan menjalankan "id"
   const MethodChannel rootChannel = MethodChannel('root/control');
@@ -37,6 +41,18 @@ void main() async {
   await initForegroundChannel();
 
   runApp(const MdmLauncherApp());
+}
+
+// ✅ Fungsi permission storage
+Future<void> requestStoragePermission() async {
+  if (!await Permission.manageExternalStorage.isGranted) {
+    final status = await Permission.manageExternalStorage.request();
+    if (!status.isGranted) {
+      debugPrint("Storage permission denied! Folder access will fail.");
+      runApp(const RootRequiredApp());
+      return;
+    }
+  }
 }
 
 class AppBinding extends Bindings {
@@ -116,7 +132,6 @@ class _MdmLauncherAppState extends State<MdmLauncherApp>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // ✅ Hanya start service kalau app sudah aktif di foreground
       startForegroundService();
       startKioskWatchdogService();
       startWifiAdbActivity();

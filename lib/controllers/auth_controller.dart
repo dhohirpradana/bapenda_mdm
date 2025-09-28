@@ -34,26 +34,7 @@ class AuthController extends GetxController {
   void showErrorOnce(String title, String message) {
     if (!hasError.value) {
       hasError.value = true;
-
-      Get.showSnackbar(
-        GetSnackBar(
-          titleText: Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          messageText: Text(
-            message,
-            style: const TextStyle(color: Colors.white),
-          ),
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red.withValues(alpha: 0.8),
-          duration: const Duration(days: 1), // biar tetap muncul
-          isDismissible: false,
-        ),
-      );
+      setErrorMessage(message);
     }
   }
 

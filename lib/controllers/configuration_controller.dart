@@ -1,22 +1,23 @@
 // ignore_for_file: invalid_use_of_protected_member
-
-import 'dart:convert';
 import 'dart:io';
 import 'package:bapenda_mdm/constants/constant.dart';
+import 'package:bapenda_mdm/services/download_file.dart';
 import 'package:bapenda_mdm/services/kiosk_service.dart';
 import 'package:bapenda_mdm/services/root_service.dart';
+import 'package:bapenda_mdm/services/screensaver.dart';
 // ignore: depend_on_referenced_packages
 import 'package:collection/collection.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:get_storage/get_storage.dart';
+
+final box = GetStorage();
 
 class ConfigurationController extends GetxController {
   var screensaverType = ''.obs;
-  var screensaverImage = ''.obs;
+  // var screensaverImage = RecordModel().obs;
   var screensaverText = ''.obs;
-  var screensaverVideo = ''.obs;
+  // var screensaverVideo = RecordModel().obs;
   var allowedApps = <String>[].obs;
 
   /// Semua aplikasi yang terinstall
@@ -27,6 +28,15 @@ class ConfigurationController extends GetxController {
 
   /// Cache untuk menyimpan konfigurasi terakhir
   Map<String, dynamic> _lastConfiguration = {};
+
+  // Update allowedApps dari local storage saat inisialisasi
+  @override
+  void onInit() {
+    super.onInit();
+    final storedAllowedApps = List<String>.from(box.read('allowedApps') ?? []);
+    _updateAllowedAppsIfChanged(storedAllowedApps);
+    debugPrint("Loaded allowedApps from storage: $storedAllowedApps");
+  }
 
   Future<void> updateFromPocketBase(Map<String, dynamic> data) async {
     debugPrint("Updating configuration with data: $data");
@@ -44,7 +54,14 @@ class ConfigurationController extends GetxController {
 
     // === Update Allowed Apps hanya jika berubah ===
     final newAllowedApps = List<String>.from(data['allowedApps'] ?? []);
-    _updateAllowedAppsIfChanged(newAllowedApps);
+
+    if (newAllowedApps.isNotEmpty) {
+      box.write('allowedApps', newAllowedApps);
+      _updateAllowedAppsIfChanged(newAllowedApps);
+    } else {
+      final fromLocal = List<String>.from(box.read('allowedApps') ?? []);
+      _updateAllowedAppsIfChanged(fromLocal);
+    }
 
     // === Screensaver Configuration ===
     await _updateScreensaverConfiguration(data);
@@ -119,32 +136,41 @@ class ConfigurationController extends GetxController {
     Map<String, dynamic> data,
   ) async {
     screensaverType.value = data['screensaverType'] ?? '';
-    screensaverImage.value = data['screensaverImage'] ?? '';
+    // screensaverImage.value = data['screensaverImage'];
     screensaverText.value = data['screensaverText'] ?? '';
-    screensaverVideo.value = data['screensaverVideo'] ?? '';
+    // screensaverVideo.value = data['screensaverVideo'];
 
     final isScreensaverEnabled = data['isScreensaverEnabled'] ?? false;
-    final collectionId = data['collectionId'];
-    final recordId = data['id'];
 
     debugPrint("Screensaver type: ${screensaverType.value}");
-    debugPrint("Screensaver image: ${screensaverImage.value}");
-    debugPrint("Screensaver video: ${screensaverVideo.value}");
     debugPrint("Screensaver Interval: ${data['screensaverInterval']}");
+
+    final screensaverImage = data['screensaverImage'];
+    final screensaverVideo = data['screensaverVideo'];
+    debugPrint("Screensaver Image: $screensaverImage");
+    debugPrint("Screensaver Video: $screensaverVideo");
 
     // Download files secara parallel jika diperlukan
     final downloadTasks = <Future<File?>>[];
 
-    if (screensaverImage.value.isNotEmpty) {
+    if (screensaverImage != null) {
+      final recordId = screensaverImage.data['id'];
+      final contentCollectionId = screensaverImage.data['collectionId'];
+      final contentFile = screensaverImage.data['file'];
       final imageUrl =
-          "${Constants.pocketbaseUrl}/api/files/$collectionId/$recordId/${screensaverImage.value}";
-      downloadTasks.add(downloadFile(imageUrl, screensaverImage.value));
+          "${Constants.pocketbaseUrl}/api/files/$contentCollectionId/$recordId/$contentFile";
+      debugPrint("Image URL: $imageUrl");
+      downloadTasks.add(downloadFile(imageUrl, contentFile));
     }
 
-    if (screensaverVideo.value.isNotEmpty) {
+    if (screensaverVideo != null) {
+      final recordId = screensaverVideo.data['id'];
+      final contentCollectionId = screensaverVideo.data['collectionId'];
+      final contentFile = screensaverVideo.data['file'];
       final videoUrl =
-          "${Constants.pocketbaseUrl}/api/files/$collectionId/$recordId/${screensaverVideo.value}";
-      downloadTasks.add(downloadFile(videoUrl, screensaverVideo.value));
+          "${Constants.pocketbaseUrl}/api/files/$contentCollectionId/$recordId/$contentFile";
+      debugPrint("Video URL: $videoUrl");
+      downloadTasks.add(downloadFile(videoUrl, contentFile));
     }
 
     final downloadResults = await Future.wait(downloadTasks);
@@ -152,11 +178,11 @@ class ConfigurationController extends GetxController {
     File? localImage;
     File? localVideo;
 
-    if (screensaverImage.value.isNotEmpty && downloadResults.isNotEmpty) {
+    if (data['screensaverImage'].data != null && downloadResults.isNotEmpty) {
       localImage = downloadResults[0];
     }
-    if (screensaverVideo.value.isNotEmpty) {
-      final videoIndex = screensaverImage.value.isNotEmpty ? 1 : 0;
+    if (data['screensaverVideo'].data != null) {
+      final videoIndex = data['screensaverImage'].data['id'].isNotEmpty ? 1 : 0;
       if (downloadResults.length > videoIndex) {
         localVideo = downloadResults[videoIndex];
       }
@@ -168,7 +194,7 @@ class ConfigurationController extends GetxController {
       text: screensaverText.value,
       imagePath: localImage?.path,
       videoPath: localVideo?.path,
-      interval: data['screensaverInterval'] ?? 10,
+      interval: data['screensaverInterval'] ?? 60,
     );
   }
 
@@ -237,81 +263,7 @@ class ConfigurationController extends GetxController {
   bool get hasConfigurationCache => _lastConfiguration.isNotEmpty;
 }
 
-Future<File> saveScreensaverConfig({
-  required bool isEnabled,
-  required String type,
-  String? text,
-  String? imagePath,
-  String? videoPath,
-  required int interval,
-}) async {
-  final file = File(
-    "/storage/emulated/0/Android/data/id.bapenda.mdm/files/screensaver_config.json",
-  );
-
-  final intervalMs = interval < 60 ? 60 : interval;
-
-  final data = {
-    'isEnabled': isEnabled,
-    'type': type,
-    'text': text ?? '',
-    'imagePath': imagePath ?? '',
-    'videoPath': videoPath ?? '',
-    'interval': intervalMs,
-  };
-
-  debugPrint("Saving screensaver config: $data");
-
-  // Pastikan directory ada
-  await file.parent.create(recursive: true);
-
-  return file.writeAsString(jsonEncode(data));
-}
-
 // disable screensaver
 Future<File> disableScreensaver() async {
   return saveScreensaverConfig(isEnabled: false, type: '', interval: 0);
-}
-
-Future<File> downloadFile(String url, String filename) async {
-  debugPrint("Downloading file from $url");
-
-  final dir = await getApplicationDocumentsDirectory();
-  final filePath = "${dir.path}/$filename";
-  final file = File(filePath);
-
-  // Cek apakah file sudah ada dan valid
-  if (await file.exists() && await file.length() > 0) {
-    debugPrint("File already exists and valid: $filePath");
-    return file;
-  }
-
-  try {
-    // Pastikan directory ada
-    await file.parent.create(recursive: true);
-
-    // Download dengan timeout dan retry logic
-    final dio = Dio();
-    dio.options.connectTimeout = const Duration(seconds: 30);
-    dio.options.receiveTimeout = const Duration(seconds: 60);
-
-    await dio.download(url, filePath);
-    debugPrint("Downloaded $filename to $filePath");
-
-    // Verifikasi file berhasil didownload
-    if (!await file.exists() || await file.length() == 0) {
-      throw Exception("Downloaded file is empty or corrupted");
-    }
-  } catch (e) {
-    debugPrint("Failed to download $filename: $e");
-
-    // Hapus file yang corrupt jika ada
-    if (await file.exists()) {
-      await file.delete();
-    }
-
-    rethrow;
-  }
-
-  return file;
 }
