@@ -206,6 +206,7 @@ class ConfigurationController extends GetxController {
 
     if (isKioskEnabled && kioskTarget.isNotEmpty) {
       debugPrint("Setting kiosk mode for target: $kioskTarget");
+      RootService.openApp(kioskTarget);
       await kioskService.setKioskConfig(enabled: true, target: kioskTarget);
     } else {
       debugPrint("Disabling kiosk mode");

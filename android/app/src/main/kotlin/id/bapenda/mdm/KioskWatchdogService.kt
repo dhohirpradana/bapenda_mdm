@@ -159,6 +159,7 @@ class KioskWatchdogService : Service() {
             try {
                 startActivity(launch)
                 Log.i(TAG, "Launched $target via launchIntent")
+                closeAllRecentApps()
                 return
             } catch (e: Exception) {
                 Log.w(TAG, "Failed startActivity, fallback to am start", e)
@@ -171,6 +172,7 @@ class KioskWatchdogService : Service() {
                 "am start --user 0 -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n $comp"
             Log.d(TAG, "Executing shell cmd: $cmd")
             executeShell(cmd)
+            closeAllRecentApps()
         } else {
             Log.d(TAG, "Fallback monkey start for $target")
             executeShell("monkey -p $target -c android.intent.category.LAUNCHER 1")
@@ -296,6 +298,14 @@ class KioskWatchdogService : Service() {
         } catch (e: Exception) {
             Log.w(TAG, "getTopPackageByUsageStats error", e)
             return null
+        }
+    }
+
+    private fun closeAllRecentApps() {
+        try {
+            Runtime.getRuntime().exec(arrayOf("su", "-c", "am kill-all"))
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to close recent apps", e)
         }
     }
 }

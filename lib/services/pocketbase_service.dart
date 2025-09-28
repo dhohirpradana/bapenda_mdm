@@ -127,7 +127,10 @@ class PocketBaseService {
         recordData['screensaverVideo'] = await _resolveScreensaverImageVideo(
           recordData['screensaverVideo'],
         );
-        // debugPrint("Configuration subscription event: $recordData");
+        final targetApp = await _resolveTargetApp(recordData['kioskTarget']);
+        if (targetApp != null) {
+          recordData['kioskTarget'] = targetApp.data['packageId'];
+        }
         configController.updateFromPocketBase(recordData);
       }
     });
@@ -145,6 +148,10 @@ class PocketBaseService {
     config.data['screensaverVideo'] = await _resolveScreensaverImageVideo(
       config.data['screensaverVideo'],
     );
+    final targetApp = await _resolveTargetApp(config.data['kioskTarget']);
+    if (targetApp != null) {
+      config.data['kioskTarget'] = targetApp.data['packageId'];
+    }
     configController.updateFromPocketBase(config.toJson());
   }
 
@@ -310,7 +317,23 @@ class PocketBaseService {
     config.data['screensaverVideo'] = await _resolveScreensaverImageVideo(
       config.data['screensaverVideo'],
     );
+    final targetApp = await _resolveTargetApp(config.data['kioskTarget']);
+    if (targetApp != null) {
+      config.data['kioskTarget'] = targetApp.data['packageId'];
+    }
     configController.updateFromPocketBase(config.toJson());
+  }
+
+  // resolve targetApp from apps table
+  static Future<dynamic> _resolveTargetApp(String? appId) async {
+    if (appId == null || appId.isEmpty) return null;
+    try {
+      final app = await pb.collection('apps').getOne(appId);
+      return app;
+    } catch (e) {
+      debugPrint("Error resolving target app: $e");
+      return null;
+    }
   }
 
   static Future<dynamic> _resolveScreensaverImageVideo(
