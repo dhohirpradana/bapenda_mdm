@@ -3,6 +3,7 @@ import 'package:bapenda_mdm/controllers/auth_controller.dart';
 import 'package:bapenda_mdm/controllers/configuration_controller.dart';
 import 'package:bapenda_mdm/controllers/content_controller.dart';
 import 'package:bapenda_mdm/models/result_model.dart';
+import 'package:bapenda_mdm/services/api_service.dart';
 import 'package:bapenda_mdm/services/device_service.dart';
 import 'package:bapenda_mdm/services/kiosk_service.dart';
 import 'package:dio/dio.dart';
@@ -13,13 +14,15 @@ import 'package:pocketbase/pocketbase.dart';
 
 class PocketBaseService {
   static final String backendUrl = Constants.backendUrl;
-  static final Dio dio = Dio(
-    BaseOptions(
-      baseUrl: backendUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 30),
-    ),
-  );
+  // static final Dio dio = Dio(
+  //   BaseOptions(
+  //     baseUrl: backendUrl,
+  //     connectTimeout: const Duration(seconds: 15),
+  //     receiveTimeout: const Duration(seconds: 30),
+  //   ),
+  // );
+  static final Dio dio = ApiClient.dioProd;
+  // PocketBase instance
   static final pb = PocketBase(Constants.pocketbaseUrl);
   static final storage = GetStorage();
   static String? _configurationId;
@@ -68,22 +71,29 @@ class PocketBaseService {
 
       debugPrint("Enroll response data: $data");
 
-      if (email != null && password != null && password.isNotEmpty) {
-        await pb.collection('devices').authWithPassword(email, password);
+      try {
+        if (email != null && password != null && password.isNotEmpty) {
+          await pb.collection('devices').authWithPassword(email, password);
+        }
+
+        await _loadConfiguration(_configurationId!);
+
+        // Simpan auth & device info ke storage
+        _saveAuthToStorage(email, password, data);
+
+        await subscribeToDevice(_deviceRecordId!);
+        await subscribeToConfiguration(_configurationId!);
+
+        authController.setLoggedIn(true);
+        authController.setLoading(false);
+
+        return Result.ok("Berhasil enroll perangkat");
+      } catch (e) {
+        debugPrint("Enroll error: $e");
+        authController.setLoading(false);
+        await logout();
+        return Result.fail("Gagal autentikasi device: $e");
       }
-
-      await _loadConfiguration(_configurationId!);
-
-      // Simpan auth & device info ke storage
-      _saveAuthToStorage(email, password, data);
-
-      await subscribeToDevice(_deviceRecordId!);
-      await subscribeToConfiguration(_configurationId!);
-
-      authController.setLoggedIn(true);
-      authController.setLoading(false);
-
-      return Result.ok("Berhasil enroll perangkat");
     } on DioException catch (e) {
       debugPrint("Enroll DioException: $e");
       authController.setLoading(false);

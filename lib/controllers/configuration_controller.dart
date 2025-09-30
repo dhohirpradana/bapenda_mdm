@@ -4,7 +4,7 @@ import 'package:bapenda_mdm/constants/constant.dart';
 import 'package:bapenda_mdm/services/download_file.dart';
 import 'package:bapenda_mdm/services/kiosk_service.dart';
 import 'package:bapenda_mdm/services/root_service.dart';
-import 'package:bapenda_mdm/services/screensaver.dart';
+import 'package:bapenda_mdm/services/screensaver_service.dart';
 // ignore: depend_on_referenced_packages
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
