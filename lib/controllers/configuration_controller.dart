@@ -178,10 +178,13 @@ class ConfigurationController extends GetxController {
     File? localImage;
     File? localVideo;
 
-    if (data['screensaverImage'].data != null && downloadResults.isNotEmpty) {
+    if (data['screensaverImage'] != null &&
+        data['screensaverImage'].data != null &&
+        downloadResults.isNotEmpty) {
       localImage = downloadResults[0];
     }
-    if (data['screensaverVideo'].data != null) {
+    if (data['screensaverVideo'] != null &&
+        data['screensaverVideo'].data != null) {
       final videoIndex = data['screensaverImage'].data['id'].isNotEmpty ? 1 : 0;
       if (downloadResults.length > videoIndex) {
         localVideo = downloadResults[videoIndex];

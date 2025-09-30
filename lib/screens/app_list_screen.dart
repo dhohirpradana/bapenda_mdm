@@ -1,4 +1,5 @@
 import 'package:bapenda_mdm/controllers/auth_controller.dart';
+import 'package:bapenda_mdm/services/app_install.dart';
 import 'package:bapenda_mdm/services/background_service.dart'
     // ignore: library_prefixes
     as PocketBaseService;
@@ -21,6 +22,8 @@ class _AppListScreenState extends State<AppListScreen>
     with TickerProviderStateMixin {
   final configCtrl = Get.find<ConfigurationController>();
   final KioskService kioskService = KioskService();
+
+  final authCtrl = Get.find<AuthController>();
 
   int tapCount = 0;
   DateTime? lastTapTime;
@@ -103,11 +106,26 @@ class _AppListScreenState extends State<AppListScreen>
   }
 
   // Restore auth
+  Future<void> checkAndInstall() async {
+    HapticFeedback.mediumImpact();
+    try {
+      await AppInstallService().checkAndInstall(
+        authCtrl.deviceId.value.isNotEmpty
+            ? authCtrl.deviceId.value
+            : "Unknown ID",
+      );
+    } catch (e) {
+      HapticFeedback.heavyImpact();
+    }
+  }
+
+  // Restore auth
   Future<void> restoreAuth() async {
     HapticFeedback.mediumImpact();
     try {
       await PocketBaseService.restoreAuth();
-      HapticFeedback.lightImpact();
+      // HapticFeedback.lightImpact();
+      await checkAndInstall();
     } catch (e) {
       HapticFeedback.heavyImpact();
     }
@@ -372,8 +390,6 @@ class _AppListScreenState extends State<AppListScreen>
   }
 
   void _showDeviceInfoSheet() {
-    final authCtrl = Get.find<AuthController>();
-
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -688,8 +704,8 @@ class _AppListScreenState extends State<AppListScreen>
                             children: [
                               _buildFloatingButton(
                                 icon: isLoading ? null : Icons.refresh,
-                                onTap: restoreAuth,
-                                onLongPress: restoreAuth,
+                                onTap: checkAndInstall,
+                                // onLongPress: checkAndInstall,
                                 color: const Color(0xFF10B981),
                                 isLoading: isLoading,
                               ),

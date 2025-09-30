@@ -39,7 +39,7 @@ class MainActivity : FlutterActivity() {
 
     private lateinit var methodChannel: MethodChannel
     private val handler = Handler(Looper.getMainLooper())
-    private val interval: Long = 60_000 * 30
+    private val interval: Long = 60_000 * 1
     // interval 5 menit
     // private val interval: Long = 5 * 60 * 1000L
 
