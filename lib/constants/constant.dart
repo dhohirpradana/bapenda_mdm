@@ -9,7 +9,7 @@ class Constants {
   // static const String backendUrl = "https://api.egzy.id";
 
   static const String pocketbaseUrl =
-      "https://sms.bapenda.jabarprov.go.id/api-pb";
+      "https://api-mdm.bapenda.jabarprov.go.id/pb";
   static const String backendUrl =
-      "https://sms.bapenda.jabarprov.go.id/api-enroll";
+      "https://api-mdm.bapenda.jabarprov.go.id/enroll";
 }

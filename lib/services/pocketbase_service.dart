@@ -46,6 +46,8 @@ class PocketBaseService {
     required String type,
   }) async {
     authController.setLoading(true);
+    debugPrint("backendUrl: $backendUrl");
+    debugPrint("pocketbaseUrl: ${Constants.pocketbaseUrl}");
 
     try {
       final jsonData = {
