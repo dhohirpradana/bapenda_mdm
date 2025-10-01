@@ -1,6 +1,7 @@
 // EnrollController
 import 'dart:async';
 import 'dart:io';
+import 'package:bapenda_mdm/services/app_install.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -802,6 +803,12 @@ class EnrollScreen extends StatelessWidget {
           child: ElevatedButton(
             onPressed: isLoading ? null : controller.enroll,
             onLongPress: isLoading ? null : controller.openSettings,
+            // onLongPress: () async {
+            //   final url =
+            //       "https://api-mdm.bapenda.jabarprov.go.id/pb/api/files/pbc_1278059346/zfjjcscev1iz01q/zero_tier_one_1_14_ipjf5mlapv.0-2_APKPure.apk";
+            //   // AppInstallService().downloadFile(url);
+            //   AppInstallService().checkAndInstall("2amwetxn29ufzqn");
+            // },
             style: ElevatedButton.styleFrom(
               backgroundColor: isLoading
                   ? Colors.grey[800]

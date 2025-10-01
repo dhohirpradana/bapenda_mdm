@@ -1,20 +1,24 @@
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:bapenda_mdm/constants/constant.dart';
 
 class AppInstallService {
   final PocketBase pb = PocketBase(Constants.pocketbaseUrl);
 
-  /// Cek log di PocketBase untuk device tertentu lalu install jika perlu
+  /// 🔹 Cek log dari PocketBase, lalu download & install jika perlu
   Future<void> checkAndInstall(String deviceId) async {
     debugPrint('checkAndInstall: start for deviceId=$deviceId');
 
     try {
       final listResult = await pb
           .collection('install_logs')
-          .getList(filter: 'device = "$deviceId"', expand: 'app', perPage: 50);
+          .getList(
+            filter: 'device = "$deviceId" && stage = "pending"',
+            expand: "app",
+            perPage: 50,
+          );
 
       debugPrint('Fetched ${listResult.items.length} records');
 
@@ -24,23 +28,14 @@ class AppInstallService {
         final logId = log.id;
         debugPrint('Processing logId=$logId');
 
-        final app = log.expand['app']?.first;
-        if (app == null) {
-          debugPrint('Log $logId has no expanded app -> skip');
-          continue;
-        }
+        final app = log.get<List<RecordModel>>("expand.app").first;
 
         final apkFilename = app.data['file']?.toString() ?? 'unknown.apk';
         final collectionId = app.data['collectionId'];
         final apkUrl =
             "${Constants.pocketbaseUrl}/api/files/$collectionId/${app.id}/$apkFilename";
 
-        // 🔹 Simpan ke app directory, bukan /data/local/tmp
-        final dir = await getApplicationDocumentsDirectory();
-        final savePath = "${dir.path}/$apkFilename";
-
         debugPrint('Log $logId -> apkUrl=$apkUrl');
-        debugPrint('Log $logId -> savePath=$savePath');
 
         // mark as downloading
         await _safeUpdate(logId, {
@@ -48,48 +43,19 @@ class AppInstallService {
           "status": "in_progress",
         });
 
-        // download file
-        final client = HttpClient();
         try {
-          final req = await client.getUrl(Uri.parse(apkUrl));
-          final res = await req.close();
-          if (res.statusCode != 200) {
-            await _safeUpdate(logId, {
-              "stage": "error",
-              "status": "failed",
-              "message": "Download failed ${res.statusCode}",
-            });
-            continue;
-          }
-          final file = File(savePath);
-          final sink = file.openWrite();
-          await res.pipe(sink);
-          await sink.close();
-        } catch (e) {
+          // 🔹 download dan install dengan fungsi modular
+          final savePath = await downloadFile(apkUrl, apkFilename);
+
+          // mark as installing
           await _safeUpdate(logId, {
-            "stage": "error",
-            "status": "failed",
-            "message": "Exception download: $e",
+            "stage": "installing",
+            "status": "in_progress",
           });
-          continue;
-        } finally {
-          client.close();
-        }
 
-        // mark as installing
-        await _safeUpdate(logId, {
-          "stage": "installing",
-          "status": "in_progress",
-        });
+          final success = await silentInstall(savePath);
 
-        // jalankan pm install via su
-        try {
-          final result = await Process.run("su", [
-            "-c",
-            "pm install -r \"$savePath\"",
-          ]);
-
-          if (result.exitCode == 0) {
+          if (success) {
             await _safeUpdate(logId, {
               "stage": "done",
               "status": "success",
@@ -99,14 +65,14 @@ class AppInstallService {
             await _safeUpdate(logId, {
               "stage": "error",
               "status": "failed",
-              "message": result.stderr.toString(),
+              "message": "Silent install failed",
             });
           }
         } catch (e) {
           await _safeUpdate(logId, {
             "stage": "error",
             "status": "failed",
-            "message": "Exception install: $e",
+            "message": "Exception: $e",
           });
         }
       }
@@ -117,11 +83,77 @@ class AppInstallService {
     debugPrint('checkAndInstall: finished for deviceId=$deviceId');
   }
 
+  /// 🔹 Update log PocketBase aman
   Future<void> _safeUpdate(String id, Map<String, dynamic> body) async {
     try {
       await pb.collection('install_logs').update(id, body: body);
     } catch (e) {
       debugPrint("Failed to update log $id: $e");
+    }
+  }
+
+  /// 🔹 Download file dengan Dio ke /data/local/tmp/
+  Future<String> downloadFile(String url, String fileName) async {
+    Dio dio = Dio();
+    debugPrint("Download file from: $url");
+
+    // Simpan dulu ke sandbox app (punya izin tulis)
+    final dir =
+        Directory.systemTemp.path; // atau getApplicationDocumentsDirectory()
+    final localPath = "$dir/$fileName";
+
+    await dio.download(url, localPath);
+
+    debugPrint("Download selesai di: $localPath");
+
+    // Pindahkan ke /data/local/tmp lewat root
+    final tmpPath = "/data/local/tmp/$fileName";
+    final result = await Process.run('su', [
+      '-c',
+      'cp "$localPath" "$tmpPath" && chmod 644 "$tmpPath"',
+    ]);
+
+    debugPrint("copy stdout: ${result.stdout}");
+    debugPrint("copy stderr: ${result.stderr}");
+
+    return tmpPath;
+  }
+
+  /// 🔹 Silent install pakai `su pm install`
+  Future<bool> silentInstall(String apkPath) async {
+    try {
+      // pm install default expect file di /data/local/tmp
+      ProcessResult result = await Process.run('su', [
+        '-c',
+        'pm install -r "$apkPath"',
+      ]);
+
+      debugPrint("stdout: ${result.stdout}");
+      debugPrint("stderr: ${result.stderr}");
+      return result.exitCode == 0;
+    } catch (e) {
+      debugPrint("Silent install error: $e");
+      return false;
+    }
+  }
+
+  /// 🔹 Ambil semua install_logs dengan status "pending" untuk device tertentu
+  Future<List<RecordModel>> fetchPendingLogs(String deviceId) async {
+    try {
+      final result = await pb
+          .collection('install_logs')
+          .getList(
+            filter: 'device = "$deviceId" && stage = "pending"',
+            expand: "app",
+            perPage: 50,
+          );
+      debugPrint(
+        "Found ${result.items.length} pending logs for device=$deviceId",
+      );
+      return result.items;
+    } catch (e) {
+      debugPrint("Error fetching pending logs: $e");
+      return [];
     }
   }
 }
