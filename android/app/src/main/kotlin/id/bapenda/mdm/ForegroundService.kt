@@ -17,6 +17,7 @@ import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.plugin.common.MethodChannel
 import android.media.MediaPlayer
 import android.text.TextUtils
+import android.media.AudioManager
 
 class ForegroundService : Service() {
     private var timer: Timer? = null
@@ -76,7 +77,7 @@ class ForegroundService : Service() {
         // }
         // methodChannel = MethodChannel(flutterEngine!!.dartExecutor.binaryMessenger, "foreground_service_channel")
 
-        // // Timer tiap 1 menit untuk panggil restoreAuth di Dart
+        // // Timer tiap 5 menit untuk panggil restoreAuth di Dart
         // timer = Timer()
         // timer?.scheduleAtFixedRate(object : TimerTask() {
         //     override fun run() {
@@ -85,7 +86,7 @@ class ForegroundService : Service() {
         //             methodChannel?.invokeMethod("restoreAuth", null)
         //         }
         //     }
-        // }, 0, 60 * 1000)
+        // }, 0, 60 * 1000 * 5)
 
         runnable = Runnable { showOverlay() }
         resetIdleTimer()
@@ -329,6 +330,7 @@ class ForegroundService : Service() {
                         mediaPlayer = MediaPlayer().apply {
                             setDataSource(videoFile.path)
                             setSurface(surfaceObj)
+                            setAudioStreamType(AudioManager.STREAM_MUSIC)
                             isLooping = true
                             setOnPreparedListener {
                                 // Scaling biar video pas di layar

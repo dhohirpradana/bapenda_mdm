@@ -136,61 +136,73 @@ class ConfigurationController extends GetxController {
     Map<String, dynamic> data,
   ) async {
     screensaverType.value = data['screensaverType'] ?? '';
-    // screensaverImage.value = data['screensaverImage'];
     screensaverText.value = data['screensaverText'] ?? '';
-    // screensaverVideo.value = data['screensaverVideo'];
 
     final isScreensaverEnabled = data['isScreensaverEnabled'] ?? false;
 
-    debugPrint("Screensaver type: ${screensaverType.value}");
-    debugPrint("Screensaver Interval: ${data['screensaverInterval']}");
-
     final screensaverImage = data['screensaverImage'];
     final screensaverVideo = data['screensaverVideo'];
+
+    debugPrint("Screensaver type: ${screensaverType.value}");
+    debugPrint("Screensaver Interval: ${data['screensaverInterval']}");
     debugPrint("Screensaver Image: $screensaverImage");
     debugPrint("Screensaver Video: $screensaverVideo");
 
-    // Download files secara parallel jika diperlukan
+    // Download tasks
     final downloadTasks = <Future<File?>>[];
 
+    // IMAGE
     if (screensaverImage != null) {
       final recordId = screensaverImage.data['id'];
       final contentCollectionId = screensaverImage.data['collectionId'];
       final contentFile = screensaverImage.data['file'];
+
       final imageUrl =
           "${Constants.pocketbaseUrl}/api/files/$contentCollectionId/$recordId/$contentFile";
+
       debugPrint("Image URL: $imageUrl");
+
       downloadTasks.add(downloadFile(imageUrl, contentFile));
     }
 
+    // VIDEO
     if (screensaverVideo != null) {
       final recordId = screensaverVideo.data['id'];
       final contentCollectionId = screensaverVideo.data['collectionId'];
       final contentFile = screensaverVideo.data['file'];
+
       final videoUrl =
           "${Constants.pocketbaseUrl}/api/files/$contentCollectionId/$recordId/$contentFile";
+
       debugPrint("Video URL: $videoUrl");
+
       downloadTasks.add(downloadFile(videoUrl, contentFile));
     }
 
+    // Tunggu semua download selesai
     final downloadResults = await Future.wait(downloadTasks);
 
     File? localImage;
     File? localVideo;
 
-    if (data['screensaverImage'] != null &&
-        data['screensaverImage'].data != null &&
-        downloadResults.isNotEmpty) {
-      localImage = downloadResults[0];
-    }
-    if (data['screensaverVideo'] != null &&
-        data['screensaverVideo'].data != null) {
-      final videoIndex = data['screensaverImage'].data['id'].isNotEmpty ? 1 : 0;
-      if (downloadResults.length > videoIndex) {
-        localVideo = downloadResults[videoIndex];
-      }
+    // Index penanda
+    int idx = 0;
+
+    // Jika image ada → hasil pertama
+    if (screensaverImage != null) {
+      localImage = downloadResults[idx];
+      idx++;
     }
 
+    // Jika video ada → hasil berikutnya
+    if (screensaverVideo != null && idx < downloadResults.length) {
+      localVideo = downloadResults[idx];
+    }
+
+    debugPrint("Local image path: ${localImage?.path}");
+    debugPrint("Local video path: ${localVideo?.path}");
+
+    // Simpan konfigurasi
     await saveScreensaverConfig(
       isEnabled: isScreensaverEnabled,
       type: screensaverType.value,

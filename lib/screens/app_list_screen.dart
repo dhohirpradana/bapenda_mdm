@@ -6,6 +6,7 @@ import 'package:bapenda_mdm/services/background_service.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../controllers/configuration_controller.dart';
 import '../services/root_service.dart';
 import '../widgets/app_tile.dart';
@@ -117,6 +118,14 @@ class _AppListScreenState extends State<AppListScreen>
     } catch (e) {
       HapticFeedback.heavyImpact();
     }
+  }
+
+  // Application Version
+  static Future<String> getAppVersion() async {
+    PackageInfo packageInfo = await PackageInfo.fromPlatform();
+    String version = packageInfo.version;
+
+    return version;
   }
 
   // Restore auth
@@ -389,7 +398,9 @@ class _AppListScreenState extends State<AppListScreen>
     });
   }
 
-  void _showDeviceInfoSheet() {
+  void _showDeviceInfoSheet() async {
+    // aplication version
+    final appVersion = await getAppVersion();
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -465,9 +476,7 @@ class _AppListScreenState extends State<AppListScreen>
                             : "Unknown Device",
                         color: const Color(0xFF10B981),
                       ),
-
                       const SizedBox(height: 16),
-
                       _buildInfoCard(
                         icon: Icons.fingerprint,
                         label: "Device ID",
@@ -476,6 +485,14 @@ class _AppListScreenState extends State<AppListScreen>
                             : "Unknown ID",
                         color: const Color(0xFF8B5CF6),
                         isCopyable: true,
+                      ),
+                      // Application Version
+                      const SizedBox(height: 16),
+                      _buildInfoCard(
+                        icon: Icons.verified,
+                        label: "App Version",
+                        value: appVersion,
+                        color: const Color(0xFF3B82F6),
                       ),
                     ],
                   ),

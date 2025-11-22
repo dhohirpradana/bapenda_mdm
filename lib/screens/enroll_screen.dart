@@ -1,12 +1,13 @@
 // EnrollController
 import 'dart:async';
 import 'dart:io';
-import 'package:bapenda_mdm/services/app_install.dart';
+// import 'package:bapenda_mdm/services/app_install.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:uuid/uuid.dart';
 import '../services/pocketbase_service.dart';
 import '../services/root_service.dart';
@@ -295,6 +296,14 @@ class EnrollController extends GetxController with GetTickerProviderStateMixin {
     loading.value = true;
     errorMessage.value = null;
 
+    // Application Version
+    Future<String> getAppVersion() async {
+      PackageInfo packageInfo = await PackageInfo.fromPlatform();
+      String version = packageInfo.version;
+
+      return version;
+    }
+
     try {
       final deviceId = const Uuid().v4();
       final result = await PocketBaseService.enrollDevice(
@@ -303,7 +312,7 @@ class EnrollController extends GetxController with GetTickerProviderStateMixin {
         displayName: displayName,
         platform: "Android",
         osVersion: androidInfo.value!.version.release,
-        appVersion: "2.0.0",
+        appVersion: await getAppVersion(),
         tailscaleIp: tailscaleIp.value!,
         deviceModel: androidInfo.value!.model,
         manufacturer: androidInfo.value!.manufacturer,

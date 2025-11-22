@@ -1,7 +1,7 @@
 name: bapenda_mdm
 description: "A new Flutter project."
 publish_to: "none"
-version: 0.1.0
+version: 2.0.1
 
 environment:
   sdk: ^3.8.0
@@ -24,6 +24,7 @@ dependencies:
   get_storage_info: ^0.4.0
   permission_handler: ^12.0.1
   flutter_isolate: ^2.1.0
+  package_info_plus: ^9.0.0
   # flutter_background_service: ^5.1.0
   # flutter_background_service_android: ^6.3.1
 
