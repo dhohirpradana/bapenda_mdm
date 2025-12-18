@@ -18,6 +18,8 @@ import io.flutter.plugin.common.MethodChannel
 import android.media.MediaPlayer
 import android.text.TextUtils
 import android.media.AudioManager
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 
 class ForegroundService : Service() {
     private var timer: Timer? = null
@@ -103,14 +105,15 @@ class ForegroundService : Service() {
         // ==== FILE OBSERVER ====
         val dir = getExternalFilesDir(null)
         val configFile = File(dir, "screensaver_config.json")
-        fileObserver = object : FileObserver(configFile.path, CLOSE_WRITE) {
+        fileObserver = object : FileObserver(configFile.path, ALL_EVENTS) {
             override fun onEvent(event: Int, path: String?) {
-                if (event == CLOSE_WRITE) {
-                    Log.d(TAG, "screensaver_config.json changed, reloading...")
-
-                    // Jalankan di main thread
+                if (event == CLOSE_WRITE || event == MODIFY || event == MOVED_TO) {
                     handler?.post {
                         loadScreensaverConfig()
+                        if (isScreensaverShown) {
+                            hideOverlay()
+                            showOverlay()
+                        }
                     }
                 }
             }
@@ -314,6 +317,29 @@ class ForegroundService : Service() {
             return false
         }
 
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
+        // Paksa volume ke maksimum (aman untuk mode signage)
+        audioManager.setStreamVolume(
+            AudioManager.STREAM_MUSIC,
+            audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC),
+            0
+        )
+
+        // **WAJIB**: Audio attributes modern
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+            .build()
+
+        // **WAJIB**: Audio focus modern
+        val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+            .setAudioAttributes(audioAttributes)
+            .setAcceptsDelayedFocusGain(true)
+            .setWillPauseWhenDucked(false)
+            .setOnAudioFocusChangeListener { }
+            .build()
+
         return try {
             Log.d(TAG, "Playing video with TextureView: ${videoFile.path}")
 
@@ -325,38 +351,35 @@ class ForegroundService : Service() {
 
             textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
                 override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
-                    try {
-                        val surfaceObj = Surface(surface)
-                        mediaPlayer = MediaPlayer().apply {
-                            setDataSource(videoFile.path)
-                            setSurface(surfaceObj)
-                            setAudioStreamType(AudioManager.STREAM_MUSIC)
-                            isLooping = true
-                            setOnPreparedListener {
-                                // Scaling biar video pas di layar
-                                val videoWidth = it.videoWidth
-                                val videoHeight = it.videoHeight
-                                val scaleX = width.toFloat() / videoWidth
-                                val scaleY = height.toFloat() / videoHeight
-                                val scale = minOf(scaleX, scaleY)
-                                val scaledWidth = (videoWidth * scale).toInt()
-                                val scaledHeight = (videoHeight * scale).toInt()
 
-                                textureView.layoutParams = FrameLayout.LayoutParams(
-                                    scaledWidth,
-                                    scaledHeight,
-                                    Gravity.CENTER
-                                )
-                                start()
-                            }
-                            setOnErrorListener { _, what, extra ->
-                                Log.e(TAG, "MediaPlayer error: what=$what extra=$extra")
-                                false
-                            }
-                            prepareAsync()
+                    // Request audio focus
+                    val granted = audioManager.requestAudioFocus(focusRequest)
+                    if (granted != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+                        Log.e(TAG, "Audio focus NOT granted — forcing play anyway")
+                    }
+
+                    val surfaceObj = Surface(surface)
+
+                    mediaPlayer = MediaPlayer().apply {
+                        setAudioAttributes(audioAttributes)    // penting
+                        setDataSource(videoFile.path)
+                        setSurface(surfaceObj)
+                        isLooping = true
+
+                        setOnPreparedListener { mp ->
+                            // Pastikan volumenya keluar (Wajib)
+                            mp.setVolume(1f, 1f)
+
+                            // Mulai play
+                            mp.start()
                         }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error initializing MediaPlayer: ${e.message}", e)
+
+                        setOnErrorListener { _, what, extra ->
+                            Log.e(TAG, "MediaPlayer error: what=$what extra=$extra")
+                            false
+                        }
+
+                        prepareAsync()
                     }
                 }
 
@@ -365,6 +388,7 @@ class ForegroundService : Service() {
                 override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
                     mediaPlayer?.release()
                     mediaPlayer = null
+                    audioManager.abandonAudioFocusRequest(focusRequest)
                     return true
                 }
             }
@@ -379,7 +403,7 @@ class ForegroundService : Service() {
 
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error setting up TextureView video: ${e.message}", e)
+            Log.e(TAG, "Error setting up video: ${e.message}", e)
             false
         }
     }

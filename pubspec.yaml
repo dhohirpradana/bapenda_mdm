@@ -1,7 +1,7 @@
 name: bapenda_mdm
 description: "A new Flutter project."
 publish_to: "none"
-version: 2.0.1
+version: 2.0.2
 
 environment:
   sdk: ^3.8.0
